@@ -50,7 +50,7 @@ Running without `--dry-run` writes the ledger and sends external notifications. 
 ## Notification UX
 
 - For local personal Feishu delivery, prefer `feishu_cli`: current-user direct message, Card 2.0, and no webhook or stored App Secret.
-- For groups or GitHub Actions, use `feishu` with a webhook, Telegram, or Bark. Do not require a group for a personal local setup.
+- For GitHub Actions direct messages, use `feishu_app` with `FEISHU_APP_ID`, `FEISHU_APP_SECRET`, and `FEISHU_USER_ID`; it reuses the same Card 2.0 through the app API without requiring a group. For groups, use `feishu` with a webhook, Telegram, or Bark. Do not require a group for a personal setup.
 - Feishu CLI cards use a full-width single-column plan group and a nine-cell dedicated progress row. Do not split the progress bar across columns.
 - Percentage plans omit redundant `85 / 100 %` denominators. Monetary and token plans retain absolute remaining/total values.
 - Feishu CLI idempotency keys include a content digest so changed layouts and updated quotas can be resent.

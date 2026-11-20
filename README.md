@@ -44,7 +44,7 @@ Open your fork or clone with a coding agent and say:
 ## Morning Brief
 
 <div align="center">
-  <img src="assets/token-pace-feishu-card.jpg" alt="Actual TokenPace Feishu Card 2.0 with Kimi and GLM quotas" width="600"><br>
+  <img src="assets/token-pace-feishu-card.jpg" alt="Actual TokenPace Feishu Card 2.0 with Kimi and GLM quotas" width="400"><br>
   <sub>Actual Feishu Card 2.0: full-width plan groups, compact progress bars, and minute-level rolling reset times.</sub>
 </div>
 
@@ -278,9 +278,20 @@ When `value_path` is omitted, TokenPace checks `usage.total_tokens`, `total_toke
 | Notifier | Delivery style | Required settings |
 | --- | --- | --- |
 | `feishu` | Interactive Card with progress bars and status colors | `webhook_url` |
+| `feishu_app` | Card 2.0 direct message through the Feishu app API | `app_id`, `app_secret`, `user_id`; optional `base_url` |
 | `feishu_cli` | Card 2.0 direct message through local `lark-cli` | Local CLI login; optional `user_id`, `identity`, `cli_path` |
 | `telegram` | MarkdownV2 message | `bot_token`, `chat_id` |
 | `bark` | iOS push notification | `device_key`; optional `server`, `group`, `icon` |
+
+For **private direct messages in GitHub Actions**, use `feishu_app`. Store `FEISHU_APP_ID`, `FEISHU_APP_SECRET`, and `FEISHU_USER_ID` (the recipient's open_id) as Actions Secrets. The app needs the bot send-message scope and a direct-message relationship with the recipient; no group is required.
+
+```toml
+[[notifiers]]
+type = "feishu_app"
+app_id = "${FEISHU_APP_ID}"
+app_secret = "${FEISHU_APP_SECRET}"
+user_id = "${FEISHU_USER_ID}"
+```
 
 `feishu_cli` is the simplest option for a personal local setup. It sends a Card 2.0 to the current CLI user by default, without storing an App Secret in `plans.toml`. Each plan uses a full-width group with a compact nine-cell progress bar; percentage plans omit the redundant `85 / 100 %` denominator, and rolling resets are shown to the minute. The app bot needs the send-message scope and a direct-message relationship with the recipient. Use `user_id = "ou_xxx"` to override the recipient or `identity = "user"` to send as the authorized user.
 

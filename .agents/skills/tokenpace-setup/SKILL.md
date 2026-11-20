@@ -73,6 +73,7 @@ For `local_jsonl`, verify the glob and inspect only enough record structure to d
 
 For GitHub Actions:
 
+- Feishu direct message: `type = "feishu_app"` with `app_id = "${FEISHU_APP_ID}"`, `app_secret = "${FEISHU_APP_SECRET}"`, and `user_id = "${FEISHU_USER_ID}"`; it sends Card 2.0 through the app API and requires bot send-message scope and a direct-message relationship
 - Feishu group: `type = "feishu"`, `webhook_url = "${FEISHU_WEBHOOK_URL}"`
 - Telegram: `type = "telegram"`, `bot_token`, and `chat_id`
 - Bark: `type = "bark"`, `device_key`; optional `server` and `group`
@@ -94,7 +95,7 @@ Use distinct, descriptive environment-variable names for multiple custom provide
 
 List each required variable and where the user sets it. Ask the user to set secrets in their own shell or GitHub Actions Secrets, then tell you when finished.
 
-For GitHub Actions, ensure `.github/workflows/morning-brief.yml` maps every referenced secret. Existing mappings include `KIM_CODE_API_KEY` and `GLM_TOKEN_PLAN_API_KEY`; add new mappings when introducing new variables.
+For GitHub Actions, ensure `.github/workflows/morning-brief.yml` maps every referenced secret. Existing mappings include `KIM_CODE_API_KEY`, `GLM_TOKEN_PLAN_API_KEY`, `FEISHU_APP_ID`, `FEISHU_APP_SECRET`, and `FEISHU_USER_ID`; add new mappings when introducing new variables and keep the config-only workflow synchronized.
 
 Do not generate persistent shell configuration or secret files unless the user explicitly asks. Do not echo secrets in verification commands.
 

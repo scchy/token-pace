@@ -3,12 +3,19 @@ from __future__ import annotations
 from tokenpace.models import Notifier
 from tokenpace.notifiers.bark import BarkNotifier
 from tokenpace.notifiers.feishu import FeishuNotifier
+from tokenpace.notifiers.feishu_app import FeishuAppNotifier
 from tokenpace.notifiers.feishu_cli import FeishuCliNotifier
 from tokenpace.notifiers.telegram import TelegramNotifier
 
 _NOTIFIERS: dict[str, Notifier] = {
     notifier.name: notifier
-    for notifier in (FeishuCliNotifier(), FeishuNotifier(), TelegramNotifier(), BarkNotifier())
+    for notifier in (
+        FeishuAppNotifier(),
+        FeishuCliNotifier(),
+        FeishuNotifier(),
+        TelegramNotifier(),
+        BarkNotifier(),
+    )
 }
 
 

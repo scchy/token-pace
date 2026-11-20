@@ -74,11 +74,19 @@ def render_text(
     return "\n".join(sections)
 
 
-def post_json(url: str, payload: dict[str, Any], timeout: float = 10) -> Any:
+def post_json(
+    url: str,
+    payload: dict[str, Any],
+    timeout: float = 10,
+    headers: dict[str, str] | None = None,
+) -> Any:
+    request_headers = {"Content-Type": "application/json; charset=utf-8"}
+    if headers:
+        request_headers.update(headers)
     request = urllib.request.Request(
         url,
         data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={"Content-Type": "application/json; charset=utf-8"},
+        headers=request_headers,
     )
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:

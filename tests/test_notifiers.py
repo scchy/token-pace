@@ -9,6 +9,7 @@ from tokenpace.models import PlanMetrics, QuotaSnapshot
 from tokenpace.notifiers._common import NotifierError
 from tokenpace.notifiers.bark import BarkNotifier
 from tokenpace.notifiers.feishu import FeishuNotifier, build_feishu_card
+from tokenpace.notifiers.feishu_app import FeishuAppNotifier
 from tokenpace.notifiers.feishu_cli import FeishuCliNotifier, _run_cli, build_feishu_cli_card
 from tokenpace.notifiers.telegram import TelegramNotifier, build_telegram_text
 
@@ -164,6 +165,61 @@ def test_bark_send_supports_errors_and_encodes_device_key(
         BarkNotifier().send([], [], {"device_key": "key"})
 
 
+def test_feishu_app_authenticates_and_sends_card2_to_user(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = []
+
+    def fake_post(url, payload, timeout, headers=None):
+        calls.append((url, payload, headers))
+        if "tenant_access_token" in url:
+            return {"code": 0, "tenant_access_token": "tenant-token"}
+        return {"code": 0, "data": {"message_id": "om_1"}}
+
+    monkeypatch.setattr("tokenpace.notifiers.feishu_app.post_json", fake_post)
+    FeishuAppNotifier().send(
+        metrics(),
+        [],
+        {"app_id": "app-id", "app_secret": "app-secret", "user_id": "ou_target"},
+    )
+    assert len(calls) == 2
+    assert calls[0][1] == {"app_id": "app-id", "app_secret": "app-secret"}
+    message_url, message, headers = calls[1]
+    assert message_url.endswith("receive_id_type=open_id")
+    assert message["receive_id"] == "ou_target"
+    assert message["msg_type"] == "interactive"
+    assert json.loads(message["content"])["schema"] == "2.0"
+    assert headers == {"Authorization": "Bearer tenant-token"}
+
+
+def test_feishu_app_rejects_authentication_and_send_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "tokenpace.notifiers.feishu_app.post_json",
+        lambda *args, **kwargs: {"code": 10003, "msg": "invalid app secret"},
+    )
+    with pytest.raises(NotifierError, match="invalid app secret"):
+        FeishuAppNotifier().send(
+            [], [], {"app_id": "id", "app_secret": "secret", "user_id": "ou_target"}
+        )
+
+    responses = iter(
+        [
+            {"code": 0, "tenant_access_token": "tenant-token"},
+            {"code": 230001, "msg": "bot is not available"},
+        ]
+    )
+    monkeypatch.setattr(
+        "tokenpace.notifiers.feishu_app.post_json",
+        lambda *args, **kwargs: next(responses),
+    )
+    with pytest.raises(NotifierError, match="bot is not available"):
+        FeishuAppNotifier().send(
+            [], [], {"app_id": "id", "app_secret": "secret", "user_id": "ou_target"}
+        )
+
+
 def test_feishu_cli_sends_direct_message_to_current_user(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -260,6 +316,7 @@ def test_feishu_cli_wraps_cli_error(monkeypatch: pytest.MonkeyPatch) -> None:
     ("notifier", "config", "message"),
     [
         (FeishuNotifier(), {}, "webhook_url"),
+        (FeishuAppNotifier(), {}, "app_id"),
         (TelegramNotifier(), {}, "bot_token"),
         (BarkNotifier(), {}, "device_key"),
     ],

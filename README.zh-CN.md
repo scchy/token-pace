@@ -44,7 +44,7 @@ TokenPace 将分散在各个平台的 AI 额度汇总成一份可以直接指导
 ## 晨报预览
 
 <div align="center">
-  <img src="assets/token-pace-feishu-card.jpg" alt="TokenPace 飞书 Card 2.0 实际效果，包含 Kimi 与 GLM 额度" width="600"><br>
+  <img src="assets/token-pace-feishu-card.jpg" alt="TokenPace 飞书 Card 2.0 实际效果，包含 Kimi 与 GLM 额度" width="400"><br>
   <sub>真实飞书 Card 2.0：全宽套餐分组、紧凑进度条、分钟级滚动重置时间。</sub>
 </div>
 
@@ -278,9 +278,20 @@ aggregate = "sum" # 逐条累加；累计字段可改为 latest
 | Notifier | 推送样式 | 必需配置 |
 | --- | --- | --- |
 | `feishu` | 带进度条和状态色的 Interactive Card | `webhook_url` |
+| `feishu_app` | 通过飞书应用 API 私聊 Card 2.0 | `app_id`、`app_secret`、`user_id`；可选 `base_url` |
 | `feishu_cli` | 通过本机 `lark-cli` 私聊 Card 2.0 卡片 | 本机 CLI 登录态；可选 `user_id`、`identity`、`cli_path` |
 | `telegram` | MarkdownV2 消息 | `bot_token`、`chat_id` |
 | `bark` | iOS 推送通知 | `device_key`；可选 `server`、`group`、`icon` |
+
+在 **GitHub Actions 中私聊个人**时，使用 `feishu_app`。将 `FEISHU_APP_ID`、`FEISHU_APP_SECRET` 和 `FEISHU_USER_ID`（接收人的 open_id）保存为 Actions Secrets。应用需要 Bot 发消息权限，并已和接收人建立私聊关系，不需要创建群。
+
+```toml
+[[notifiers]]
+type = "feishu_app"
+app_id = "${FEISHU_APP_ID}"
+app_secret = "${FEISHU_APP_SECRET}"
+user_id = "${FEISHU_USER_ID}"
+```
 
 本机个人使用推荐 `feishu_cli`：默认向当前 CLI 用户私聊 Card 2.0，无需在 `plans.toml` 保存 App Secret。每个套餐采用全宽分组和 9 格紧凑进度条；百分比套餐隐藏 `85 / 100 %` 冗余分母，滚动重置时间精确到分钟。应用 Bot 需要发消息权限，并与接收人建立私聊关系。可通过 `user_id = "ou_xxx"` 指定其他接收人，或用 `identity = "user"` 改为用户身份发送。
 
