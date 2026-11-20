@@ -3,12 +3,14 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from tokenpace.i18n import status_badge, text
+from tokenpace.i18n import text
 from tokenpace.models import PlanMetrics
 from tokenpace.notifiers._common import (
     NotifierError,
     brief_date,
     exhaustion_text,
+    metric_status_badge,
+    profile_text,
     post_json,
     progress_bar,
     reset_text,
@@ -36,7 +38,7 @@ def build_telegram_text(
         reset = _escape(reset_text(metric, locale))
         lines.extend(
             (
-                f"*{_escape(snap.plan_name)}* {_escape(status_badge(locale, metric.status))}",
+                f"*{_escape(snap.plan_name)}* {_escape(metric_status_badge(metric, locale))}",
                 f"`{progress_bar(metric.remaining_pct)}` "
                 f"*{_escape(f'{metric.remaining_pct:.1f}')}*% {_escape(text(locale, 'remaining'))}",
                 f"`{_escape_code(f'{metric.remaining:.2f} / {snap.total:.2f} {snap.unit}')}` · *{reset}*",
@@ -49,6 +51,9 @@ def build_telegram_text(
                 "",
             )
         )
+        profile = profile_text(metric, locale)
+        if profile:
+            lines.insert(len(lines) - 3, f"• {_escape(profile)}")
     if errors:
         lines.append(f"⚠️ *{_escape(text(locale, 'errors'))}*")
         lines.extend(f"• {_escape(error)}" for error in errors)

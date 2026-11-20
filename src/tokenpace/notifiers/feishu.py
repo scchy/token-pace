@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from tokenpace.i18n import status_badge, text
+from tokenpace.i18n import text
 from tokenpace.models import PlanMetrics
 from tokenpace.notifiers._common import (
     NotifierError,
     brief_date,
     exhaustion_text,
+    metric_status_badge,
+    profile_text,
     post_json,
     progress_bar,
     reset_text,
@@ -26,7 +28,7 @@ def build_feishu_card(
         else "blue"
         if "surplus" in statuses
         else "grey"
-        if not metrics or statuses == {"idle"}
+        if not metrics or statuses <= {"idle", "calibrating"}
         else "green"
     )
     elements: list[dict[str, Any]] = []
@@ -34,13 +36,15 @@ def build_feishu_card(
         snap = metric.snapshot
         per_day = text(locale, "per_day")
         reset = reset_text(metric, locale)
+        profile = profile_text(metric, locale)
+        profile_suffix = f"\n{profile}" if profile else ""
         content = (
-            f"**{snap.plan_name}**　{status_badge(locale, metric.status)}\n"
+            f"**{snap.plan_name}**　{metric_status_badge(metric, locale)}\n"
             f"`{progress_bar(metric.remaining_pct)}` **{metric.remaining_pct:.1f}%** "
             f"{text(locale, 'remaining')} "
             f"(`{metric.remaining:.2f} / {snap.total:.2f} {snap.unit}` · **{reset}**)\n"
             f"• {text(locale, 'burn')}: `{metric.burn_rate_7d:.2f} {snap.unit}{per_day}` "
-            f"→ {exhaustion_text(metric, locale)}\n"
+            f"→ {exhaustion_text(metric, locale)}{profile_suffix}\n"
             f"• {text(locale, 'safe')}: `{metric.recommended_daily:.2f} {snap.unit}{per_day}`\n"
             f"• {text(locale, 'advice')}: {metric.advice}"
         )

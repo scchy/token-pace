@@ -42,7 +42,9 @@ No MCP server is needed for setup, Agent access, or scheduled delivery; the CLI 
 
 Include only selected plans. Every plan needs a unique `id`, `name`, `provider`, `unit`, `total_quota`, `reset_cycle`, and provider-specific `auth`, `options`, or `headers`.
 
-Use `monthly:N` for recurring monthly resets or `YYYY-MM-DD` for a fixed fallback date. For rolling quotas, configure `options.reset_path`; it overrides the static reset date on every successful fetch and preserves the timestamp to the minute. Never infer a fixed weekday from the current response.
+Use `monthly:N` for recurring monthly resets or `YYYY-MM-DD` for a fixed fallback date. For rolling quotas, configure `options.reset_path`; it overrides the static reset date on every successful fetch and preserves the timestamp and shows a days-hours-minutes countdown. Never infer a fixed weekday from the current response.
+
+Leave `pacing_mode = "auto"` by default to learn weekday/weekend burn rates from up to 28 dated samples. Use `uniform` for natural-day pacing, or `custom` with `weekend_weight` for an explicit weekend ratio. Legacy `workdays_only = true` maps to custom mode with zero weekend weight. Do not interpret first-day calibration as actual zero usage.
 
 Inspect the actual provider response before choosing fields. Do not invent endpoints, array positions, caps, or reset dates.
 
@@ -87,7 +89,7 @@ identity = "bot"
 # user_id = "ou_xxx" # optional; defaults to the current CLI user
 ```
 
-`feishu_cli` sends a full-width Card 2.0 directly to the current CLI user, with a nine-cell progress row, no redundant percentage denominator, and minute-level reset times. It requires a working `lark-cli` login, bot send-message scope, and a direct-message relationship with the recipient. No App Secret belongs in `plans.toml`.
+`feishu_cli` sends a full-width Card 2.0 directly to the current CLI user, with a nine-cell progress row, no redundant percentage denominator, and minute-level reset times and days-hours-minutes countdowns. It requires a working `lark-cli` login, bot send-message scope, and a direct-message relationship with the recipient. No App Secret belongs in `plans.toml`.
 
 Use distinct, descriptive environment-variable names for multiple custom providers.
 
@@ -95,7 +97,17 @@ Use distinct, descriptive environment-variable names for multiple custom provide
 
 List each required variable and where the user sets it. Ask the user to set secrets in their own shell or GitHub Actions Secrets, then tell you when finished.
 
-For GitHub Actions, ensure `.github/workflows/morning-brief.yml` maps every referenced secret. Existing mappings include `KIM_CODE_API_KEY`, `GLM_TOKEN_PLAN_API_KEY`, `FEISHU_APP_ID`, `FEISHU_APP_SECRET`, and `FEISHU_USER_ID`; add new mappings when introducing new variables and keep the config-only workflow synchronized.
+For GitHub Actions, ensure `.github/workflows/morning-brief.yml` maps every referenced secret. Existing mappings include `KIM_CODE_API_KEY`, `GLM_TOKEN_PLAN_API_KEY`, `FEISHU_APP_ID`, `FEISHU_APP_SECRET`, and `FEISHU_USER_ID`; add new mappings when introducing new variables and keep the config-only workflow synchronized. Secrets belong in the user's **private repository** under `Settings → Secrets and variables → Actions`, never in the public upstream repository.
+
+Feishu open_id values are app-specific. If delivery fails with `99992361: open_id cross app`, do not retry with the same ID. Guide the user to authorize the target app and query its own open_id:
+
+```bash
+lark-cli config init --new
+lark-cli auth login --scope "auth:user.id:read"
+lark-cli auth status --json --verify
+```
+
+Use `identities.user.openId` from the target app as `FEISHU_USER_ID`. Personal Feishu does not expose this app-specific value in account settings. Warn that configuring a new app may change the active CLI profile. App authentication succeeding does not prove the recipient ID is valid; verify with an actual confirmed send.
 
 Do not generate persistent shell configuration or secret files unless the user explicitly asks. Do not echo secrets in verification commands.
 
@@ -126,7 +138,7 @@ TokenPace dry runs do not invoke notifiers. For `feishu_cli`, separately preview
 - Direct the user to **Use this template → Private** at `https://github.com/scchy/token-pace/generate`; do not tell them to make a public fork private. The upstream maintainer must enable **Template repository** in Settings for this link to work.
 - Ensure `plans.toml` and `.github/workflows/morning-brief.yml` are included when the user asks to commit or push.
 - Confirm all referenced Secrets are configured in the generated private repository.
-- Explain how to run **TokenPace Morning Brief** manually from the Actions tab.
+- Explain how to run **TokenPace Morning Brief** manually from the Actions tab, then verify both the delivered card and the automatic `chore: update usage ledger [skip ci]` commit. A green workflow without the expected card or ledger commit still needs investigation.
 - Keep the schedule at 10:30 Asia/Shanghai unless the user requests otherwise.
 - Preserve automatic `data/ledger.jsonl` commits with `git add -f`, `[skip ci]`, and `git pull --rebase`, plus the upstream missing-config skip. Branch protection must allow the bot's persistence strategy.
 - For a config-only private repository, copy both files from `examples/config-only-repo` and use its `uvx` workflow instead of the source-checkout workflow. Add new provider secret mappings to both workflows.

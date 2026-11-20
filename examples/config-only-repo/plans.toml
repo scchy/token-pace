@@ -3,6 +3,7 @@ locale = "en"
 timezone = "Asia/Shanghai"
 ledger_path = "data/ledger.jsonl"
 workdays_only = false
+pacing_mode = "auto"
 timeout = 10
 
 # Keep only the plans you use and set total_quota to your actual budget.
@@ -17,7 +18,10 @@ reset_cycle = "monthly:1"
 [plans.auth]
 api_key = "${OPENROUTER_API_KEY}"
 
-# GitHub Actions uses a group webhook or another cloud-compatible notifier.
+# Direct Card 2.0 delivery without a group. Store all three values as Actions Secrets.
+# FEISHU_USER_ID must be the recipient open_id issued by this specific app.
 [[notifiers]]
-type = "feishu"
-webhook_url = "${FEISHU_WEBHOOK_URL}"
+type = "feishu_app"
+app_id = "${FEISHU_APP_ID}"
+app_secret = "${FEISHU_APP_SECRET}"
+user_id = "${FEISHU_USER_ID}"

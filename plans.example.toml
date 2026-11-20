@@ -3,6 +3,9 @@ locale = "en"
 timezone = "Asia/Shanghai"
 ledger_path = "data/ledger.jsonl"
 workdays_only = false
+pacing_mode = "auto"
+# pacing_mode = "custom" 时生效：周末消耗相对工作日的比例
+# weekend_weight = 0.2
 timeout = 10
 
 # OpenRouter data.usage is lifetime spend for the key. Use its lifetime budget,

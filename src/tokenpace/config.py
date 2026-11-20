@@ -24,6 +24,8 @@ class AppConfig:
     timezone: str
     ledger_path: Path
     workdays_only: bool
+    pacing_mode: str
+    weekend_weight: float | None
     locale: str
     timeout: float
     plans: list[dict[str, Any]]
@@ -74,6 +76,23 @@ def load_config(path: str | Path) -> AppConfig:
     workdays_only = general.get("workdays_only", False)
     if not isinstance(workdays_only, bool):
         raise ConfigError("general.workdays_only 必须是布尔值")
+    pacing_mode = str(
+        general.get("pacing_mode", "custom" if workdays_only else "auto")
+    ).lower()
+    if pacing_mode not in {"auto", "uniform", "custom"}:
+        raise ConfigError("general.pacing_mode 仅支持 auto、uniform 或 custom")
+    raw_weight = general.get("weekend_weight", 0.0 if workdays_only else None)
+    weekend_weight = None
+    if raw_weight is not None:
+        try:
+            weekend_weight = float(raw_weight)
+        except (TypeError, ValueError) as exc:
+            raise ConfigError("general.weekend_weight 必须是非负数") from exc
+        if weekend_weight < 0:
+            raise ConfigError("general.weekend_weight 必须是非负数")
+    if pacing_mode == "custom" and weekend_weight is None:
+        raise ConfigError("pacing_mode = custom 时需要配置 weekend_weight")
+
     locale = str(general.get("locale", "zh")).lower()
     if locale not in SUPPORTED_LOCALES:
         raise ConfigError("general.locale 仅支持 en 或 zh")
@@ -122,6 +141,8 @@ def load_config(path: str | Path) -> AppConfig:
         timezone=timezone,
         ledger_path=ledger_path,
         workdays_only=workdays_only,
+        pacing_mode=pacing_mode,
+        weekend_weight=weekend_weight,
         locale=locale,
         timeout=timeout,
         plans=plans,

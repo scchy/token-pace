@@ -31,6 +31,8 @@ log_glob = "logs/*.jsonl"
     config = load_config(config_file)
     assert config.ledger_path == tmp_path / "history/ledger.jsonl"
     assert config.workdays_only is True
+    assert config.pacing_mode == "custom"
+    assert config.weekend_weight == 0.0
     assert config.locale == "zh"
     assert config.plans[0]["total_quota"] == "7"
 

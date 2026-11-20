@@ -74,7 +74,13 @@ Open your fork or clone with a coding agent and say:
 
 #### Alternative: config-only private repository with `uvx`
 
-For a minimal personal deployment, create a Private repository containing only `plans.toml` and `.github/workflows/morning-brief.yml`, using [`examples/config-only-repo`](examples/config-only-repo). Its workflow runs `uvx --from git+https://github.com/scchy/token-pace.git`, so upstream fixes arrive without syncing source code, while the ledger remains private. To make runs reproducible, pin the source to a release such as `git+https://github.com/scchy/token-pace.git@v0.1.0`.
+For a minimal personal deployment, create a Private repository containing only `plans.toml` and `.github/workflows/morning-brief.yml`, using [`examples/config-only-repo`](examples/config-only-repo). Its workflow runs `uvx --from git+https://github.com/scchy/token-pace.git`, so upstream fixes arrive without syncing source code, while the ledger remains private.
+
+1. Edit `plans.toml` to keep only your plans. The example uses `feishu_app` for a group-free private card.
+2. Add provider credentials and `FEISHU_APP_ID`, `FEISHU_APP_SECRET`, `FEISHU_USER_ID` under the **private repository's** `Settings → Secrets and variables → Actions`.
+3. Commit both files, then run **TokenPace Morning Brief** manually. Deployment is verified only when the private card arrives **and** a `chore: update usage ledger [skip ci]` commit appears.
+
+To make runs reproducible, pin the source to a release such as `git+https://github.com/scchy/token-pace.git@v0.2.0`; note that newer features require a release that includes them or the `main` branch.
 
 > GitHub schedules may be delayed by several minutes. Use local mode for `local_jsonl` sources on your machine. Keep direct pushes enabled on the ledger branch or adapt the persistence step for your branch protection rules.
 
@@ -111,12 +117,16 @@ Providers → Append-only JSONL Ledger → Pacing Engine → Feishu / Telegram /
 For every plan, TokenPace calculates:
 
 - **Remaining quota**: `R = max(0, Q - U)`
-- **Sustainable daily pace**: `safe = R / max(1, D)`
 - **Seven-day burn rate**: the arithmetic mean of up to seven real daily increments
-- **Pacing ratio**: `ρ = B / safe`
-- **Estimated exhaustion**: `R / B`, when usage is greater than zero
+- **Adaptive peak/off-peak profile**: weekday and weekend rates learned from up to 28 dated samples (at least three weekday and two weekend samples), with uniform fallback
+- **Expected consumption before reset**: `E = D_work × B_work + D_off × B_off`
+- **Pacing ratio**: `ρ = E / R`, so `1.0` means exactly exhausting the remaining quota at reset
+- **Today's dynamic budget**: `R × B_today / E`, preserving the remaining budget across day types
+- **Exhaustion date**: simulated day by day, skipping zero-usage weekends instead of dividing by a flat average
 
-Enable `workdays_only` to distribute the remaining quota across weekdays only.
+A recent seven-day median and peak distinguish a one-off spike from sustained overuse. First-day plans show `calibrating` rather than falsely claiming zero usage.
+
+`pacing_mode = "uniform"` forces natural-day pacing. `pacing_mode = "custom"` uses `weekend_weight`; legacy `workdays_only = true` maps automatically to custom mode with zero weekend weight.
 
 ## Configuration
 
@@ -130,6 +140,8 @@ locale = "en"
 timezone = "Asia/Shanghai"
 ledger_path = "data/ledger.jsonl"
 workdays_only = false
+pacing_mode = "auto"
+# weekend_weight = 0.2 # only used with pacing_mode = "custom"
 timeout = 10
 
 [[plans]]
@@ -171,7 +183,7 @@ See [`plans.example.toml`](plans.example.toml) for a complete multi-provider set
 
 **OpenRouter usage is cumulative for the lifetime of the API key.** Set `total_quota` to that key's lifetime budget, or use a key with its own reset cycle. Setting `monthly:1` in TokenPace does not reset OpenRouter's reported `data.usage`.
 
-`http_json.value_path` supports nested objects and array indexes, such as `data.items.0.remaining`. Set `mode = "used"` for consumed quota or `"remaining"` for remaining quota. For rolling quotas, set `options.reset_path` to an ISO timestamp, date, or Unix timestamp in the response; the next reset date then follows the provider instead of a fixed weekday, with timestamps displayed to the minute.
+`http_json.value_path` supports nested objects and array indexes, such as `data.items.0.remaining`. Set `mode = "used"` for consumed quota or `"remaining"` for remaining quota. For rolling quotas, set `options.reset_path` to an ISO timestamp, date, or Unix timestamp in the response; the next reset date then follows the provider instead of a fixed weekday, with timestamps and remaining days, hours, and minutes displayed alongside the reset time.
 
 <details>
 <summary><strong>Verified Kimi and GLM rolling-quota recipes</strong></summary>
@@ -293,7 +305,25 @@ app_secret = "${FEISHU_APP_SECRET}"
 user_id = "${FEISHU_USER_ID}"
 ```
 
-`feishu_cli` is the simplest option for a personal local setup. It sends a Card 2.0 to the current CLI user by default, without storing an App Secret in `plans.toml`. Each plan uses a full-width group with a compact nine-cell progress bar; percentage plans omit the redundant `85 / 100 %` denominator, and rolling resets are shown to the minute. The app bot needs the send-message scope and a direct-message relationship with the recipient. Use `user_id = "ou_xxx"` to override the recipient or `identity = "user"` to send as the authorized user.
+> **Open IDs are app-specific.** Do not reuse an `ou_...` value issued by another Feishu app, or delivery fails with `99992361: open_id cross app`.
+
+<details>
+<summary><strong>How to find FEISHU_USER_ID for this app</strong></summary>
+
+Personal Feishu does not expose an app-specific open_id in account settings. Authorize the app once, then query it:
+
+```bash
+# Configure the app locally; enter its credentials yourself
+lark-cli config init --new
+lark-cli auth login --scope "auth:user.id:read"
+lark-cli auth status --json --verify
+```
+
+Read `identities.user.openId` from the final output and store it as `FEISHU_USER_ID` in the **private repository's** `Settings → Secrets and variables → Actions`. Configuring a new app may change the active CLI profile; switch back if you still use the previous app locally.
+
+</details>
+
+`feishu_cli` is the simplest option for a personal local setup. It sends a Card 2.0 to the current CLI user by default, without storing an App Secret in `plans.toml`. Each plan uses a full-width group with a compact nine-cell progress bar; percentage plans omit the redundant `85 / 100 %` denominator, and rolling resets include the timestamp and a days-hours-minutes countdown. The app bot needs the send-message scope and a direct-message relationship with the recipient. Use `user_id = "ou_xxx"` to override the recipient or `identity = "user"` to send as the authorized user.
 
 TokenPace's `--dry-run` never calls a notifier. To inspect the Feishu request separately, run `lark-cli im +messages-send ... --dry-run`; only a normal TokenPace run writes the ledger and sends the card.
 
@@ -323,7 +353,8 @@ group = "TokenPace"
 | ⚠️ Fast | `ρ > 1.2` | Stay within the sustainable pace; use lighter models for routine tasks |
 | ✅ Healthy | `0.8 ≤ ρ ≤ 1.2` | Maintain the current pace |
 | 🟢 Surplus | `0 < ρ < 0.8` | Move long-context or reasoning-heavy tasks forward |
-| 💤 Idle | `B = 0` | Start from the suggested daily budget |
+| 💤 Idle | `B = 0` with existing history | Start from the suggested daily budget |
+| 🧭 Calibrating | No dated increments yet | First-day baseline; real pacing starts tomorrow |
 
 Missing days are averaged across the snapshot interval. A decrease in cumulative usage is treated as a cycle reset. New plans use the available samples rather than padding missing history with zeros.
 

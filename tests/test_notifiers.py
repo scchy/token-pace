@@ -281,8 +281,18 @@ def test_feishu_cli_shows_reset_time_to_minute() -> None:
         metrics(locale="en", unit="%", reset_at=reset_at), [], locale="en"
     )
     details = card["body"]["elements"][0]["columns"][0]["elements"][2]["content"]
-    assert details.startswith("Resets 11-25 06:07")
+    assert details.startswith("Resets 11-25 06:07 · 5d 6h 7m left")
     assert "days to reset" not in details
+    chinese = build_feishu_cli_card(metrics(unit="%", reset_at=reset_at), [])
+    chinese_details = chinese["body"]["elements"][0]["columns"][0]["elements"][2]["content"]
+    assert "重置时间 11-25 06:07 · 剩余 5天6小时7分钟" in chinese_details
+    past = build_feishu_cli_card(
+        metrics(locale="en", unit="%", reset_at=datetime(2026, 11, 19, tzinfo=timezone.utc)),
+        [],
+        locale="en",
+    )
+    past_details = past["body"]["elements"][0]["columns"][0]["elements"][2]["content"]
+    assert "0d 0h 0m left" in past_details
 
 
 def test_feishu_cli_supports_explicit_recipient_and_validates_identity(

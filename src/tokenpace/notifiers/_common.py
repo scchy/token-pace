@@ -40,8 +40,38 @@ def reset_text(metric: PlanMetrics, locale: str) -> str:
     reset_at = metric.snapshot.reset_at
     if reset_at is not None:
         local_reset = reset_at.astimezone(metric.snapshot.captured_at.tzinfo)
-        return text(locale, "reset_at", time=f"{local_reset:%m-%d %H:%M}")
+        seconds = max(0, int((reset_at - metric.snapshot.captured_at).total_seconds()))
+        days, remainder = divmod(seconds, 86400)
+        hours, remainder = divmod(remainder, 3600)
+        minutes = remainder // 60
+        remaining = text(
+            locale,
+            "reset_remaining",
+            days=days,
+            hours=hours,
+            minutes=minutes,
+        )
+        return f"{text(locale, 'reset_at', time=f'{local_reset:%m-%d %H:%M}')} · {remaining}"
     return text(locale, "reset", days=metric.days_left)
+
+
+def metric_status_badge(metric: PlanMetrics, locale: str) -> str:
+    badge = status_badge(locale, metric.status)
+    return badge + text(locale, "spike") if metric.is_spike else badge
+
+
+def profile_text(metric: PlanMetrics, locale: str) -> str | None:
+    if metric.profile_mode not in {"adaptive", "fixed_weight"}:
+        return None
+    per_day = text(locale, "per_day")
+    result = (
+        f"{text(locale, 'burn_profile')}: {text(locale, 'workday')} "
+        f"{metric.burn_rate_workday:.2f} / {text(locale, 'weekend')} "
+        f"{metric.burn_rate_weekend:.2f} {metric.snapshot.unit}{per_day}"
+    )
+    if metric.is_spike:
+        result += f" · {text(locale, 'median', value=metric.median_7d)}"
+    return result
 
 
 def render_text(
@@ -53,14 +83,21 @@ def render_text(
         snap = metric.snapshot
         per_day = text(locale, "per_day")
         reset = reset_text(metric, locale)
+        sections.append(f"{snap.plan_name}   {metric_status_badge(metric, locale)}")
+        sections.append(
+            f"{progress_bar(metric.remaining_pct)} {metric.remaining_pct:.1f}% "
+            f"{text(locale, 'remaining')} "
+            f"({metric.remaining:.2f} / {snap.total:.2f} {snap.unit} · {reset})"
+        )
+        sections.append(
+            f"• {text(locale, 'burn')}: {metric.burn_rate_7d:.2f} {snap.unit}{per_day} "
+            f"→ {exhaustion_text(metric, locale)}"
+        )
+        profile = profile_text(metric, locale)
+        if profile:
+            sections.append(f"• {profile}")
         sections.extend(
             (
-                f"{snap.plan_name}   {status_badge(locale, metric.status)}",
-                f"{progress_bar(metric.remaining_pct)} {metric.remaining_pct:.1f}% "
-                f"{text(locale, 'remaining')} "
-                f"({metric.remaining:.2f} / {snap.total:.2f} {snap.unit} · {reset})",
-                f"• {text(locale, 'burn')}: {metric.burn_rate_7d:.2f} {snap.unit}{per_day} "
-                f"→ {exhaustion_text(metric, locale)}",
                 f"• {text(locale, 'safe')}: {metric.recommended_daily:.2f} {snap.unit}{per_day}",
                 f"• {text(locale, 'advice')}: {metric.advice}",
                 "──────────────────────────────────",

@@ -22,7 +22,8 @@ For GitHub Actions:
 - Map every referenced secret in `.github/workflows/morning-brief.yml`; existing mappings include OpenRouter, DeepSeek, Kimi, GLM, Feishu, Telegram, and Bark.
 - Preserve the missing-`plans.toml` skip so the upstream repository badge does not fail.
 - Preserve automatic `data/ledger.jsonl` commits with `git add -f`, `[skip ci]`, and `git pull --rebase` before pushing.
-- Keep the upstream `/generate` flow and the config-only workflow secret mappings synchronized when adding providers.
+- Treat deployment as verified only after a manual workflow run succeeds, the recipient gets the card, and a `chore: update usage ledger [skip ci]` commit appears. Do not claim success from configuration alone.
+- Keep the upstream `/generate` flow and the config-only workflow secret mappings synchronized when adding providers. Secrets belong in each user's private repository, never the public upstream repository.
 
 ## Configure TokenPace for users
 
@@ -41,16 +42,18 @@ Running without `--dry-run` writes the ledger and sends external notifications. 
 
 ## Provider and pacing rules
 
-- For rolling quotas such as Kimi and GLM, use `http_json.options.reset_path`; never infer a fixed weekday. Preserve `reset_at` and display timestamps to the minute in the configured timezone.
+- For rolling quotas such as Kimi and GLM, use `http_json.options.reset_path`; never infer a fixed weekday. Preserve `reset_at` and display timestamps plus a days-hours-minutes countdown in the configured timezone.
 - Prefer percentage pacing for ratio-based plans. For count-based plans such as GLM credits, derive `scale = 100 / total_cap` and set `total_quota = 100` and `unit = "%"`.
 - Verify GLM's weekly entry (`unit = 6`) and its cap instead of assuming an array index for every account.
 - When changing a plan's unit, migrate its historical ledger values to the same unit to avoid false cycle resets.
-- Keep `load_daily_deltas(current=snap)` so the latest interval is included without writing during dry runs.
+- Keep `load_dated_deltas(current=snap)` so the latest interval is included without writing during dry runs. Auto pacing learns weekday/weekend rates from up to 28 dated samples (minimum 3 weekday and 2 weekend samples) and falls back to uniform pacing. Custom weekend weights and legacy `workdays_only = true` must keep numerator and denominator consistent.
+- Exhaustion is simulated day by day using the learned rates. Distinguish one-off spikes from sustained overuse with the seven-day median and peak. No history means `calibrating`, while existing zero-usage history means `idle`.
 
 ## Notification UX
 
 - For local personal Feishu delivery, prefer `feishu_cli`: current-user direct message, Card 2.0, and no webhook or stored App Secret.
 - For GitHub Actions direct messages, use `feishu_app` with `FEISHU_APP_ID`, `FEISHU_APP_SECRET`, and `FEISHU_USER_ID`; it reuses the same Card 2.0 through the app API without requiring a group. For groups, use `feishu` with a webhook, Telegram, or Bark. Do not require a group for a personal setup.
+- Feishu open_id values are app-specific. Never reuse an ID from another app; `99992361: open_id cross app` means the recipient must be resolved through the target app. Guide users through `lark-cli config init --new`, `lark-cli auth login --scope "auth:user.id:read"`, and `lark-cli auth status --json --verify`, warning that the CLI profile may change.
 - Feishu CLI cards use a full-width single-column plan group and a nine-cell dedicated progress row. Do not split the progress bar across columns.
 - Percentage plans omit redundant `85 / 100 %` denominators. Monetary and token plans retain absolute remaining/total values.
 - Feishu CLI idempotency keys include a content digest so changed layouts and updated quotas can be resent.

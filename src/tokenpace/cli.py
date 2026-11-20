@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 from tokenpace import __version__
 from tokenpace.config import ConfigError, load_config, next_reset_date
 from tokenpace.engine import compute_metrics
-from tokenpace.ledger import append_snapshot, load_daily_deltas
+from tokenpace.ledger import append_snapshot, load_dated_deltas
 from tokenpace.models import PlanMetrics
 from tokenpace.notifiers import get_notifier
 from tokenpace.notifiers._common import render_text
@@ -49,7 +49,7 @@ def run(argv: list[str] | None = None) -> int:
             plan["_timeout"] = config.timeout
             provider = get_provider(str(plan["provider"]))
             snap = provider.fetch(plan, reset_date, now)
-            deltas = load_daily_deltas(
+            deltas = load_dated_deltas(
                 config.ledger_path, snap.plan_id, before=now.date(), current=snap
             )
             metric = compute_metrics(
@@ -58,6 +58,8 @@ def run(argv: list[str] | None = None) -> int:
                 now.date(),
                 workdays_only=config.workdays_only,
                 locale=config.locale,
+                pacing_mode=config.pacing_mode,
+                weekend_weight=config.weekend_weight,
             )
             if not args.dry_run:
                 append_snapshot(config.ledger_path, snap)

@@ -2,7 +2,7 @@ import json
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-from tokenpace.ledger import append_snapshot, load_daily_deltas
+from tokenpace.ledger import append_snapshot, load_daily_deltas, load_dated_deltas
 from tokenpace.models import QuotaSnapshot
 
 
@@ -23,6 +23,12 @@ def test_deduplicates_dates_smooths_gaps_and_detects_reset(tmp_path: Path) -> No
         ],
     )
     assert load_daily_deltas(ledger, "p") == [4, 4, 4, 2]
+    assert load_dated_deltas(ledger, "p") == [
+        (date(2026, 11, 1), 4),
+        (date(2026, 11, 2), 4),
+        (date(2026, 11, 3), 4),
+        (date(2026, 11, 4), 2),
+    ]
     assert load_daily_deltas(ledger, "p", window_days=2) == [4, 2]
     assert load_daily_deltas(ledger, "p", before=date(2026, 11, 4)) == []
 

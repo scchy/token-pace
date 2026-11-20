@@ -74,7 +74,13 @@ TokenPace 将分散在各个平台的 AI 额度汇总成一份可以直接指导
 
 #### 备选：极简私有配置仓 + `uvx`
 
-个人自用时，可创建只包含 `plans.toml` 和 `.github/workflows/morning-brief.yml` 的私有仓库，直接复制 [`examples/config-only-repo`](examples/config-only-repo)。工作流通过 `uvx --from git+https://github.com/scchy/token-pace.git` 运行主仓代码，无需手动同步源码，账本仍留在私有仓库。需要可复现版本时，可固定为 `git+https://github.com/scchy/token-pace.git@v0.1.0`。
+个人自用时，可创建只包含 `plans.toml` 和 `.github/workflows/morning-brief.yml` 的私有仓库，直接复制 [`examples/config-only-repo`](examples/config-only-repo)。工作流通过 `uvx --from git+https://github.com/scchy/token-pace.git` 运行主仓代码，无需手动同步源码，账本仍留在私有仓库。
+
+1. 编辑 `plans.toml`，只保留实际套餐。示例使用 `feishu_app`，无需群聊即可私聊卡片。
+2. 在**私有仓库**的 `Settings → Secrets and variables → Actions` 中添加平台密钥以及 `FEISHU_APP_ID`、`FEISHU_APP_SECRET`、`FEISHU_USER_ID`。
+3. 提交两个文件，手动运行 **TokenPace Morning Brief**。只有收到私聊卡片，并且出现 `chore: update usage ledger [skip ci]` 自动提交，才算部署验证完成。
+
+需要可复现版本时，可固定为 `git+https://github.com/scchy/token-pace.git@v0.2.0`；但新功能需要包含该功能的 Release，或继续使用 `main` 分支。
 
 > GitHub 定时任务可能延迟数分钟。本机 `local_jsonl` 日志请使用本地运行方式。账本分支若启用禁止直接 push 的保护规则，需要相应调整自动提交步骤。
 
@@ -111,12 +117,16 @@ cron 不会自动继承交互式 shell 环境。启用前请逐一确认所需�
 TokenPace 为每个套餐计算：
 
 - **当前剩余额度**：`R = max(0, Q - U)`
-- **均匀消耗线**：`safe = R / max(1, D)`
 - **近 7 日均耗**：最近最多 7 个真实日增量的算术平均
-- **消耗水位比**：`ρ = B / safe`
-- **预计耗尽天数**：有消耗时为 `R / B`
+- **自适应峰谷画像**：从最近 28 个带日期样本学习工作日与周末速率，至少需要 3 个工作日和 2 个周末样本，不足时退化为自然日模式
+- **重置前预计总消耗**：`E = D_work × B_work + D_off × B_off`
+- **消耗水位比**：`ρ = E / R`，`1.0` 表示重置时恰好用完剩余额度
+- **今日动态预算**：`R × B_today / E`，按当天峰谷类型分配，并保证未来预算总量守恒
+- **预计耗尽日**：逐日推演，自动跳过零消耗周末，不再简单除以平坦均值
 
-开启 `workdays_only` 后，均匀消耗线仅按剩余工作日计算。
+通过近 7 日中位数和单日峰值区分偶发脉冲与持续超速。首日接入显示 `calibrating`，不再误报真实闲置。
+
+`pacing_mode = "uniform"` 强制自然日配速；`pacing_mode = "custom"` 使用 `weekend_weight`；旧配置 `workdays_only = true` 自动映射为周末权重为 0 的自定义模式。
 
 ## 配置
 
@@ -130,6 +140,8 @@ locale = "zh"
 timezone = "Asia/Shanghai"
 ledger_path = "data/ledger.jsonl"
 workdays_only = false
+pacing_mode = "auto"
+# weekend_weight = 0.2 # 仅在 pacing_mode = "custom" 时生效
 timeout = 10
 
 [[plans]]
@@ -171,7 +183,7 @@ identity = "bot"
 
 **OpenRouter 的 `data.usage` 是 API Key 的历史累计用量。** `total_quota` 应填写该 Key 的总预算，或配合自身带重置周期的 Key 使用；仅在 TokenPace 中设置 `monthly:1` 不会让 OpenRouter 的累计用量归零。
 
-`http_json.value_path` 支持嵌套对象和数组下标，例如 `data.items.0.remaining`。字段表示已用量时设置 `mode = "used"`，表示剩余量时设置为 `"remaining"`。滚动额度可设置 `options.reset_path`，指向响应中的 ISO 时间、日期或 Unix 时间戳，下一次重置日将自动跟随接口返回，而不是固定在某个星期几；时间戳会精确到分钟显示。
+`http_json.value_path` 支持嵌套对象和数组下标，例如 `data.items.0.remaining`。字段表示已用量时设置 `mode = "used"`，表示剩余量时设置为 `"remaining"`。滚动额度可设置 `options.reset_path`，指向响应中的 ISO 时间、日期或 Unix 时间戳，下一次重置日将自动跟随接口返回，而不是固定在某个星期几；时间戳会精确到分钟显示，并同时展示剩余的天数、小时和分钟。
 
 <details>
 <summary><strong>已验证的 Kimi 与 GLM 滚动额度配方</strong></summary>
@@ -293,7 +305,25 @@ app_secret = "${FEISHU_APP_SECRET}"
 user_id = "${FEISHU_USER_ID}"
 ```
 
-本机个人使用推荐 `feishu_cli`：默认向当前 CLI 用户私聊 Card 2.0，无需在 `plans.toml` 保存 App Secret。每个套餐采用全宽分组和 9 格紧凑进度条；百分比套餐隐藏 `85 / 100 %` 冗余分母，滚动重置时间精确到分钟。应用 Bot 需要发消息权限，并与接收人建立私聊关系。可通过 `user_id = "ou_xxx"` 指定其他接收人，或用 `identity = "user"` 改为用户身份发送。
+> **open_id 按应用隔离。** 不要复用其他飞书应用签发的 `ou_...`，否则会报 `99992361: open_id cross app`。
+
+<details>
+<summary><strong>如何获取当前应用的 FEISHU_USER_ID</strong></summary>
+
+个人版飞书没有在账号设置中直接查看应用 open_id 的入口。使用该应用完成一次授权后查询：
+
+```bash
+# 在本地配置应用，自行输入对应凭证
+lark-cli config init --new
+lark-cli auth login --scope "auth:user.id:read"
+lark-cli auth status --json --verify
+```
+
+读取最后输出中的 `identities.user.openId`，并在**私有仓库**的 `Settings → Secrets and variables → Actions` 中保存为 `FEISHU_USER_ID`。配置新应用可能切换 CLI 当前配置；若本机仍使用旧应用，请记得切回。
+
+</details>
+
+本机个人使用推荐 `feishu_cli`：默认向当前 CLI 用户私聊 Card 2.0，无需在 `plans.toml` 保存 App Secret。每个套餐采用全宽分组和 9 格紧凑进度条；百分比套餐隐藏 `85 / 100 %` 冗余分母，滚动重置同时显示具体时间和天-小时-分钟倒计时。应用 Bot 需要发消息权限，并与接收人建立私聊关系。可通过 `user_id = "ou_xxx"` 指定其他接收人，或用 `identity = "user"` 改为用户身份发送。
 
 TokenPace 的 `--dry-run` 不会调用任何通知端。如需单独检查飞书请求，可执行 `lark-cli im +messages-send ... --dry-run`；只有正式运行 TokenPace 才会写账本并发送卡片。
 
@@ -323,7 +353,8 @@ group = "TokenPace"
 | ⚠️ 偏快 | `ρ > 1.2` | 控制在均匀消耗线内，常规任务可切轻量模型 |
 | ✅ 健康 | `0.8 ≤ ρ ≤ 1.2` | 维持当前频率 |
 | 🟢 充裕 | `0 < ρ < 0.8` | 将长上下文或重度推理任务往前排 |
-| 💤 闲置 | `B = 0` | 从建议的今日预算开始使用 |
+| 💤 闲置 | 已有历史且 `B = 0` | 从建议的今日预算开始使用 |
+| 🧭 首日校准 | 尚无可计算的日增量 | 首日参考基线，明天生成真实配速 |
 
 相邻快照相隔多天时，消耗会均摊到区间每一天；累计用量回落时识别为周期重置。新套餐按实际样本数计算，不会用零填充缺失历史。
 

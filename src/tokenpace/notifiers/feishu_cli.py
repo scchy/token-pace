@@ -6,12 +6,14 @@ import os
 import subprocess
 from typing import Any
 
-from tokenpace.i18n import status_badge, text
+from tokenpace.i18n import text
 from tokenpace.models import PlanMetrics
 from tokenpace.notifiers._common import (
     NotifierError,
     brief_date,
     exhaustion_text,
+    metric_status_badge,
+    profile_text,
     progress_bar,
     reset_text,
 )
@@ -65,7 +67,7 @@ def _header_color(metrics: list[PlanMetrics]) -> str:
         return "orange"
     if "surplus" in statuses:
         return "blue"
-    if not metrics or statuses == {"idle"}:
+    if not metrics or statuses <= {"idle", "calibrating"}:
         return "grey"
     return "green"
 
@@ -78,7 +80,7 @@ def build_feishu_cli_card(
         snap = metric.snapshot
         per_day = text(locale, "per_day")
         reset = reset_text(metric, locale)
-        title = f"**{snap.plan_name}**　{status_badge(locale, metric.status)}"
+        title = f"**{snap.plan_name}**　{metric_status_badge(metric, locale)}"
         progress = (
             f"`{progress_bar(metric.remaining_pct, width=9)}` **{metric.remaining_pct:.1f}%** "
             f"{text(locale, 'remaining')}"
@@ -88,13 +90,21 @@ def build_feishu_cli_card(
             if snap.unit == "%"
             else f"`{metric.remaining:.2f} / {snap.total:.2f} {snap.unit}` · "
         )
-        details = (
-            f"{quota}{reset}\n"
-            f"**{text(locale, 'burn')}** `{metric.burn_rate_7d:.2f} {snap.unit}{per_day}`\n"
-            f"{exhaustion_text(metric, locale)}\n"
-            f"**{text(locale, 'safe')}** `{metric.recommended_daily:.2f} {snap.unit}{per_day}`\n"
-            f"**{text(locale, 'advice')}**：{metric.advice}"
+        detail_lines = [
+            f"{quota}{reset}",
+            f"**{text(locale, 'burn')}** `{metric.burn_rate_7d:.2f} {snap.unit}{per_day}`",
+            exhaustion_text(metric, locale),
+        ]
+        profile = profile_text(metric, locale)
+        if profile:
+            detail_lines.append(profile)
+        detail_lines.extend(
+            (
+                f"**{text(locale, 'safe')}** `{metric.recommended_daily:.2f} {snap.unit}{per_day}`",
+                f"**{text(locale, 'advice')}**：{metric.advice}",
+            )
         )
+        details = "\n".join(detail_lines)
         elements.append(
             {
                 "tag": "column_set",
