@@ -1,5 +1,6 @@
 import json
 from datetime import date, datetime, timezone
+from types import SimpleNamespace
 
 import pytest
 
@@ -8,18 +9,25 @@ from tokenpace.models import PlanMetrics, QuotaSnapshot
 from tokenpace.notifiers._common import NotifierError
 from tokenpace.notifiers.bark import BarkNotifier
 from tokenpace.notifiers.feishu import FeishuNotifier, build_feishu_card
+from tokenpace.notifiers.feishu_cli import FeishuCliNotifier, _run_cli, build_feishu_cli_card
 from tokenpace.notifiers.telegram import TelegramNotifier, build_telegram_text
 
 
-def metrics(name: str = "Plan [A]", locale: str = "zh") -> list[PlanMetrics]:
+def metrics(
+    name: str = "Plan [A]",
+    locale: str = "zh",
+    unit: str = "USD",
+    reset_at: datetime | None = None,
+) -> list[PlanMetrics]:
     snap = QuotaSnapshot(
         plan_id="p",
         plan_name=name,
         used=50,
         total=100,
-        unit="USD",
+        unit=unit,
         reset_date=date(2026, 12, 1),
         captured_at=datetime(2026, 11, 20, tzinfo=timezone.utc),
+        reset_at=reset_at,
     )
     return [compute_metrics(snap, [10] * 7, date(2026, 11, 20), locale=locale)]
 
@@ -154,6 +162,98 @@ def test_bark_send_supports_errors_and_encodes_device_key(
     )
     with pytest.raises(NotifierError, match="bad request"):
         BarkNotifier().send([], [], {"device_key": "key"})
+
+
+def test_feishu_cli_sends_direct_message_to_current_user(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    commands = []
+
+    def fake_run(command, timeout):
+        commands.append(command)
+        if command[:2] == ["lark-cli", "auth"]:
+            return json.dumps({"identities": {"user": {"openId": "ou_current"}}})
+        return json.dumps({"ok": True, "data": {"message_id": "om_1"}})
+
+    monkeypatch.setattr("tokenpace.notifiers.feishu_cli._run_cli", fake_run)
+    FeishuCliNotifier().send(metrics(), [], {})
+    assert len(commands) == 2
+    send = commands[1]
+    assert send[:2] == ["lark-cli", "im"]
+    assert send[send.index("--user-id") + 1] == "ou_current"
+    assert send[send.index("--as") + 1] == "bot"
+    assert send[send.index("--msg-type") + 1] == "interactive"
+    card = json.loads(send[send.index("--content") + 1])
+    assert card["schema"] == "2.0"
+    assert card["body"]["elements"][0]["tag"] == "column_set"
+    assert "Plan [A]" in card["body"]["elements"][0]["columns"][0]["elements"][0]["content"]
+
+
+def test_feishu_cli_card_groups_plans_and_errors() -> None:
+    card = build_feishu_cli_card(metrics(locale="en"), ["Provider failed"], locale="en")
+    elements = card["body"]["elements"]
+    assert card["header"]["template"] == "orange"
+    assert card["config"]["width_mode"] == "default"
+    assert len(elements) == 2
+    assert all(element["tag"] == "column_set" for element in elements)
+    assert elements[-1]["margin"] == "0px"
+    assert len(elements[0]["columns"]) == 1
+    progress_content = elements[0]["columns"][0]["elements"][1]["content"]
+    assert "remaining" in progress_content
+    assert len(progress_content.split("`")[1]) == 9
+    assert "Sustainable pace" in elements[0]["columns"][0]["elements"][2]["content"]
+    assert "Some providers failed" in elements[-1]["columns"][0]["elements"][0]["content"]
+    assert "hr" not in json.dumps(card)
+    empty = build_feishu_cli_card([], [], locale="en")
+    assert empty["header"]["template"] == "grey"
+    assert empty["body"]["elements"] == []
+
+
+def test_feishu_cli_hides_percentage_denominator() -> None:
+    card = build_feishu_cli_card(metrics(locale="en", unit="%"), [], locale="en")
+    details = card["body"]["elements"][0]["columns"][0]["elements"][2]["content"]
+    assert "/ 100.00 %" not in details
+    assert details.startswith("11 days to reset")
+    monetary = build_feishu_cli_card(metrics(locale="en"), [], locale="en")
+    monetary_details = monetary["body"]["elements"][0]["columns"][0]["elements"][2]["content"]
+    assert "50.00 / 100.00 USD" in monetary_details
+
+
+def test_feishu_cli_shows_reset_time_to_minute() -> None:
+    reset_at = datetime(2026, 11, 25, 6, 7, 8, tzinfo=timezone.utc)
+    card = build_feishu_cli_card(
+        metrics(locale="en", unit="%", reset_at=reset_at), [], locale="en"
+    )
+    details = card["body"]["elements"][0]["columns"][0]["elements"][2]["content"]
+    assert details.startswith("Resets 11-25 06:07")
+    assert "days to reset" not in details
+
+
+def test_feishu_cli_supports_explicit_recipient_and_validates_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    commands = []
+    monkeypatch.setattr(
+        "tokenpace.notifiers.feishu_cli._run_cli",
+        lambda command, timeout: commands.append(command) or '{"ok":true}',
+    )
+    FeishuCliNotifier().send([], [], {"user_id": "ou_target", "identity": "user"})
+    assert len(commands) == 1
+    assert commands[0][commands[0].index("--user-id") + 1] == "ou_target"
+    assert commands[0][commands[0].index("--as") + 1] == "user"
+    with pytest.raises(NotifierError, match="identity"):
+        FeishuCliNotifier().send([], [], {"identity": "admin"})
+
+
+def test_feishu_cli_wraps_cli_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    result = SimpleNamespace(
+        returncode=1,
+        stdout="",
+        stderr='{"ok":false,"error":{"message":"missing scope"}}',
+    )
+    monkeypatch.setattr("tokenpace.notifiers.feishu_cli.subprocess.run", lambda *args, **kwargs: result)
+    with pytest.raises(NotifierError, match="missing scope"):
+        _run_cli(["lark-cli", "test"], 1)
 
 
 @pytest.mark.parametrize(

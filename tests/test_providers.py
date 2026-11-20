@@ -78,3 +78,63 @@ def test_openrouter_and_deepseek_adapters(monkeypatch: pytest.MonkeyPatch) -> No
     deepseek["unit"] = "CNY"
     deepseek["total_quota"] = 200
     assert DeepSeekProvider().fetch(deepseek, RESET, NOW).used == 50
+
+
+def test_http_json_reads_rolling_reset_time_from_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "tokenpace.providers.http_json.get_json",
+        lambda *args: {
+            "usages": {
+                "limit_7d": {
+                    "used_ratio": 0.1169,
+                    "reset_time": "2026-11-25T06:07:08.622625Z",
+                }
+            }
+        },
+    )
+    cfg = plan(
+        "http_json",
+        url="https://api.kimi.com/coding/v1/usages",
+        value_path="usages.limit_7d.used_ratio",
+        reset_path="usages.limit_7d.reset_time",
+        scale=100,
+    )
+    cfg["total_quota"] = 100
+    snap = HttpJsonProvider().fetch(cfg, date(2026, 11, 25), NOW)
+    assert snap.used == pytest.approx(11.69)
+    assert snap.reset_date == date(2026, 11, 25)
+    assert snap.reset_at == datetime(2026, 11, 25, 14, 7, 8, 622625, tzinfo=NOW.tzinfo)
+
+
+def test_http_json_reads_glm_credits_and_millisecond_reset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "tokenpace.providers.http_json.get_json",
+        lambda *args: {
+            "data": {
+                "limits": [
+                    {"unit": 3, "currentValue": 116},
+                    {
+                        "unit": 6,
+                        "usage": 140000,
+                        "currentValue": 4248,
+                        "nextResetTime": 1795764818984,
+                    },
+                ]
+            }
+        },
+    )
+    cfg = plan(
+        "http_json",
+        url="https://open.bigmodel.cn/api/monitor/usage/quota/limit",
+        value_path="data.limits.1.currentValue",
+        reset_path="data.limits.1.nextResetTime",
+    )
+    cfg["total_quota"] = 140000
+    snap = HttpJsonProvider().fetch(cfg, date(2026, 11, 27), NOW)
+    assert snap.used == 4248
+    assert snap.reset_date == date(2026, 11, 27)
+    assert snap.reset_at == datetime(2026, 11, 27, 15, 33, 38, 984000, tzinfo=NOW.tzinfo)

@@ -11,6 +11,7 @@ from tokenpace.notifiers._common import (
     exhaustion_text,
     post_json,
     progress_bar,
+    reset_text,
 )
 
 _MARKDOWN_SPECIAL = re.compile(r"([\\_*\[\]()~`>#+\-=|{}.!])")
@@ -32,7 +33,7 @@ def build_telegram_text(
     for metric in metrics:
         snap = metric.snapshot
         per_day = text(locale, "per_day")
-        reset = _escape(text(locale, "reset", days=metric.days_left))
+        reset = _escape(reset_text(metric, locale))
         lines.extend(
             (
                 f"*{_escape(snap.plan_name)}* {_escape(status_badge(locale, metric.status))}",

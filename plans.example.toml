@@ -62,6 +62,12 @@ type = "feishu"
 webhook_url = "${FEISHU_WEBHOOK_URL}"
 
 # 按需取消注释；不用的通知渠道请整段删除或保持注释。
+# 本机私聊：复用 lark-cli 登录态，默认发送给当前用户。
+# [[notifiers]]
+# type = "feishu_cli"
+# identity = "bot"
+# user_id = "ou_xxx" # 可选，省略时自动使用当前用户
+
 # [[notifiers]]
 # type = "telegram"
 # bot_token = "${TELEGRAM_BOT_TOKEN}"

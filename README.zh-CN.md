@@ -29,7 +29,7 @@ TokenPace 将分散在各个平台的 AI 额度汇总成一份可以直接指导
 
 <div align="center">
 
-**[1. Fork](https://github.com/scchy/token-pace/fork) · [2. 配置套餐](plans.example.toml) · [3. 添加 Secrets 并运行](https://github.com/scchy/token-pace/actions/workflows/morning-brief.yml)**
+**[GitHub Actions（推荐）](#方式一github-actions推荐) · [本地私聊卡片](#方式二本地私聊卡片--cron) · [Agent 配置](#让-ai-agent-帮你配置)**
 
 </div>
 
@@ -39,7 +39,7 @@ TokenPace 将分散在各个平台的 AI 额度汇总成一份可以直接指导
 
 > 使用项目里的 skill 帮我配置 TokenPace。询问我需要监控的套餐和通知渠道，创建 plans.toml，并通过 dry run 验证。
 
-[AGENTS.md](AGENTS.md) 和 [`tokenpace-setup`](.agents/skills/tokenpace-setup/SKILL.md) skill 会引导 Agent 生成最小配置、保护凭证、执行 dry-run，并按需设置定时任务，无需在聊天中提供密钥。
+[AGENTS.md](AGENTS.md) 和 [`tokenpace-setup`](.agents/skills/tokenpace-setup/SKILL.md) skill 会引导 Agent 生成最小配置、保护凭证、执行 dry-run，并按需设置定时任务，无需在聊天中提供密钥。无需额外部署 MCP：Agent 可直接调用 CLI，定时晨报仍采用主动推送模式。
 
 ## 晨报预览
 
@@ -72,40 +72,40 @@ DeepSeek API     🟢 充裕
 
 ## 快速开始
 
-### 方式一：GitHub Actions
+### 方式一：GitHub Actions（推荐）
 
-每天北京时间 **08:30** 自动运行，并自动提交账本。
+**这是项目的标准示范部署**：零服务器运维，每天北京时间 **08:30** 自动运行并提交账本。除非需要本机日志或 `lark-cli` 私聊，否则优先使用此方式。
 
 1. **Fork** 本仓库。建议设为 Private，避免公开使用习惯和历史账本。
 2. 复制 `plans.example.toml` 为 `plans.toml`，删除不需要的套餐和通知渠道，然后提交。
-3. 在 **Settings → Secrets and variables → Actions** 添加配置引用的密钥。
-4. 打开 **Actions → TokenPace Morning Brief → Run workflow**，发送第一条晨报。
+3. 在 **Settings → Secrets and variables → Actions** 添加配置引用的密钥。工作流已内置 OpenRouter、DeepSeek、Kimi（`KIM_CODE_API_KEY`）、GLM（`GLM_TOKEN_PLAN_API_KEY`）、飞书、Telegram 和 Bark 映射。
+4. 打开 **Actions → TokenPace Morning Brief → Run workflow** 发送第一条晨报，新快照会自动提交到 `data/ledger.jsonl`。
 
 > GitHub 定时任务可能延迟数分钟。本机 `local_jsonl` 日志请使用本地运行方式。
 
-### 方式二：本地或 Cron
+### 方式二：本地私聊卡片 / Cron
 
-需要 Python 3.11+，推荐使用 [uv](https://docs.astral.sh/uv/)。
+个人使用推荐 `feishu_cli`：**Card 2.0 直接私聊你**，不需要群聊或 Webhook。需要 Python 3.11+ 和 [uv](https://docs.astral.sh/uv/)。
+
+1. 复制 `plans.example.toml` 为 `plans.toml`，只保留实际套餐；飞书选择 `type = "feishu_cli"`。
+2. 在自己的 shell 中设置平台密钥，并通过 `lark-cli auth status --json --verify` 检查登录。不要把密钥写进 `plans.toml`。
+3. 先预览，再明确执行真实发送：
 
 ```bash
-cp plans.example.toml plans.toml
-export OPENROUTER_API_KEY="sk-or-..."
-export FEISHU_WEBHOOK_URL="https://open.feishu.cn/open-apis/bot/v2/hook/..."
-
-# 安全预览：不推送、不写账本
+# 拉取真实额度；不写账本、不发通知
 uv run tokenpace --config plans.toml --dry-run
 
-# 拉取额度、保存账本并推送
+# 写入快照并私聊发送 Card 2.0
 uv run tokenpace --config plans.toml
 ```
 
-使用 cron 每日运行：
+如果密钥配置在 `.bashrc`，在 Agent 或 cron 的非交互环境中可使用 `bash -ic 'uv run tokenpace --config plans.toml'`。
 
 ```cron
-30 8 * * * cd ~/token-pace && uv run tokenpace --config plans.toml >> /tmp/token-pace.log 2>&1
+30 8 * * * cd ~/token-pace && bash -ic 'uv run tokenpace --config plans.toml' >> /tmp/token-pace.log 2>&1
 ```
 
-也支持 `uv run token-pace` 和 `uv run python -m tokenpace`。
+cron 不会自动继承交互式 shell 环境。启用前请逐一确认所需环境变量和 `lark-cli` 登录态在 cron 中可用。也支持 `uv run token-pace` 和 `uv run python -m tokenpace`。
 
 ## 工作原理
 
@@ -148,9 +148,11 @@ reset_cycle = "monthly:1"
 api_key = "${OPENROUTER_API_KEY}"
 
 [[notifiers]]
-type = "feishu"
-webhook_url = "${FEISHU_WEBHOOK_URL}"
+type = "feishu_cli"
+identity = "bot"
 ```
+
+团队群聊或 GitHub Actions 可改用 `type = "feishu"` 和 `webhook_url = "${FEISHU_WEBHOOK_URL}"`。
 
 相对账本路径以配置文件所在目录为基准。重置周期支持：
 
@@ -174,7 +176,50 @@ webhook_url = "${FEISHU_WEBHOOK_URL}"
 
 **OpenRouter 的 `data.usage` 是 API Key 的历史累计用量。** `total_quota` 应填写该 Key 的总预算，或配合自身带重置周期的 Key 使用；仅在 TokenPace 中设置 `monthly:1` 不会让 OpenRouter 的累计用量归零。
 
-`http_json.value_path` 支持嵌套对象和数组下标，例如 `data.items.0.remaining`。字段表示已用量时设置 `mode = "used"`，表示剩余量时设置为 `"remaining"`。
+`http_json.value_path` 支持嵌套对象和数组下标，例如 `data.items.0.remaining`。字段表示已用量时设置 `mode = "used"`，表示剩余量时设置为 `"remaining"`。滚动额度可设置 `options.reset_path`，指向响应中的 ISO 时间、日期或 Unix 时间戳，下一次重置日将自动跟随接口返回，而不是固定在某个星期几；时间戳会精确到分钟显示。
+
+<details>
+<summary><strong>已验证的 Kimi 与 GLM 滚动额度配方</strong></summary>
+
+两个示例都按百分比配速，并跟随接口返回的重置时间。`reset_cycle` 只是静态占位，每次拉取均以 `reset_path` 为准。
+
+```toml
+[[plans]]
+id = "kimi-code"
+name = "Kimi Coding Plan"
+provider = "http_json"
+unit = "%"
+total_quota = 100.0
+reset_cycle = "2026-11-25"
+[plans.options]
+url = "https://api.kimi.com/coding/v1/usages"
+value_path = "usages.limit_7d.used_ratio"
+reset_path = "usages.limit_7d.reset_time"
+scale = 100
+mode = "used"
+[plans.headers]
+Authorization = "Bearer ${KIM_CODE_API_KEY}"
+
+[[plans]]
+id = "glm-code"
+name = "GLM Coding Plan"
+provider = "http_json"
+unit = "%"
+total_quota = 100.0
+reset_cycle = "2026-11-27"
+[plans.options]
+url = "https://open.bigmodel.cn/api/monitor/usage/quota/limit"
+value_path = "data.limits.1.currentValue"
+reset_path = "data.limits.1.nextResetTime"
+scale = 0.0007142857142857143 # 100 / 140000
+mode = "used"
+[plans.headers]
+Authorization = "${GLM_TOKEN_PLAN_API_KEY}" # 原始 Key，不加 Bearer
+```
+
+GLM 请确认选中的条目是周窗口（`unit = 6`），并将换算公式中的 `140000` 替换为该条目的 `usage` 上限。不要假设所有账号的数组顺序一致。修改套餐单位时，也要同步换算历史账本，避免被误判为周期重置。
+
+</details>
 
 <details>
 <summary><strong>DeepSeek 与自定义 HTTP JSON 示例</strong></summary>
@@ -238,10 +283,20 @@ aggregate = "sum" # 逐条累加；累计字段可改为 latest
 | Notifier | 推送样式 | 必需配置 |
 | --- | --- | --- |
 | `feishu` | 带进度条和状态色的 Interactive Card | `webhook_url` |
+| `feishu_cli` | 通过本机 `lark-cli` 私聊 Card 2.0 卡片 | 本机 CLI 登录态；可选 `user_id`、`identity`、`cli_path` |
 | `telegram` | MarkdownV2 消息 | `bot_token`、`chat_id` |
 | `bark` | iOS 推送通知 | `device_key`；可选 `server`、`group`、`icon` |
 
+本机个人使用推荐 `feishu_cli`：默认向当前 CLI 用户私聊 Card 2.0，无需在 `plans.toml` 保存 App Secret。每个套餐采用全宽分组和 9 格紧凑进度条；百分比套餐隐藏 `85 / 100 %` 冗余分母，滚动重置时间精确到分钟。应用 Bot 需要发消息权限，并与接收人建立私聊关系。可通过 `user_id = "ou_xxx"` 指定其他接收人，或用 `identity = "user"` 改为用户身份发送。
+
+TokenPace 的 `--dry-run` 不会调用任何通知端。如需单独检查飞书请求，可执行 `lark-cli im +messages-send ... --dry-run`；只有正式运行 TokenPace 才会写账本并发送卡片。
+
 ```toml
+[[notifiers]]
+type = "feishu_cli"
+identity = "bot"
+# user_id = "ou_xxx" # 可选，默认当前 CLI 用户
+
 [[notifiers]]
 type = "telegram"
 bot_token = "${TELEGRAM_BOT_TOKEN}"

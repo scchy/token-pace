@@ -1,11 +1,11 @@
 ---
 name: tokenpace-setup
-description: Configure TokenPace after a fork or clone, including plans.toml, provider credentials, Feishu/Telegram/Bark notifiers, dry-run validation, GitHub Actions, and local cron. Use when the user asks to set up TokenPace, connect a plan, change quota or reset settings, enable notifications, or troubleshoot configuration.
+description: Configure and deploy TokenPace after a fork or clone, with GitHub Actions as the reference deployment, optional local Feishu CLI private cards, provider credentials, rolling quota resets, dry-run validation, and cron. Use for setup, provider or notifier changes, deployment, and troubleshooting.
 ---
 
 # TokenPace Setup
 
-Configure the checked-out TokenPace repository for the user. Make the changes rather than only providing a tutorial.
+Configure the checked-out TokenPace repository for the user. Make the changes rather than only providing a tutorial. Recommend **GitHub Actions first** for zero-maintenance deployment; use local cron and `feishu_cli` when the user needs local logs, existing CLI authentication, or private Feishu cards.
 
 ## Safety rules
 
@@ -13,114 +13,133 @@ Configure the checked-out TokenPace repository for the user. Make the changes ra
 - Never put literal credentials in `plans.toml`, documentation, logs, commits, or command output.
 - Use `${ENV_VAR}` placeholders. For GitHub Actions, direct users to repository Actions Secrets.
 - Do not read `.env` files or inspect environment-variable values. Checking whether a named variable is set is allowed, but never print its value.
+- If the user says credentials are in `.bashrc`, non-interactive `source ~/.bashrc` may return early; use `bash -ic` for checks and execution when appropriate.
 - `--dry-run` contacts configured providers but does not write the ledger or send notifications.
-- A normal run writes `data/ledger.jsonl` and sends notifications. Ask for confirmation before doing it.
+- A normal run writes `data/ledger.jsonl` and sends notifications. Confirm recipient, content, and sending identity before doing it.
 - Do not push commits, change remote secrets, enable workflows, or modify crontab without an explicit request.
 - Preserve an existing `plans.toml`; edit it incrementally instead of replacing it with the example.
 
-## Setup workflow
+## 1. Inspect and choose a deployment
 
-### 1. Inspect the repository
+Read `plans.example.toml`, `README.md`, `.github/workflows/morning-brief.yml`, and any existing `plans.toml`. Check local logs, provider credentials, notification preferences, and existing CLI authentication without exposing secrets.
 
-Read `plans.example.toml`, `README.md`, and any existing `plans.toml`. Check whether the user already has a configuration, local logs, or a preferred deployment method.
+Do not copy the entire example unchanged: unused entries cause missing-variable errors and unwanted API calls.
 
-Do not copy the entire example unchanged: unused example entries cause missing-environment-variable errors and unwanted API calls.
+Default to **GitHub Actions** when the providers work over HTTP and the recipient can use a group webhook, Telegram, or Bark. Choose local mode when the user needs `local_jsonl`, local `lark-cli` authentication, or direct Feishu messages without a group.
 
-### 2. Determine the required configuration
+Ask only for details that cannot be inferred:
 
-Collect only details that cannot be inferred:
+- Plans, display names, units, total caps, and reset behavior
+- Recipient: current user, another user, a group, or local output only
+- Briefing language: `locale = "en"` or `"zh"`; existing configurations default to `zh`
+- Deployment: GitHub Actions or local/cron
 
-- Plans to monitor: OpenRouter, DeepSeek, custom HTTP JSON, or local JSONL.
-- For each plan: display name, unit, total quota, and reset cycle.
-- Notification channels: Feishu, Telegram, Bark, several of them, or local output only.
-- Briefing language: `locale = "en"` or `"zh"`; existing configurations default to `zh`.
-- Deployment: GitHub Actions or local/cron.
+No MCP server is needed for setup, Agent access, or scheduled delivery; the CLI already supports Agent-driven dry runs.
 
-Use concise questions and sensible defaults from `plans.example.toml`. Do not invent endpoint paths, local log locations, quota amounts, or reset dates.
+## 2. Configure plans accurately
 
-For `http_json`, obtain the non-secret endpoint, response field path, whether it represents used or remaining quota, and any scale factor. Header values must use environment placeholders.
+Include only selected plans. Every plan needs a unique `id`, `name`, `provider`, `unit`, `total_quota`, `reset_cycle`, and provider-specific `auth`, `options`, or `headers`.
 
-For `local_jsonl`, verify the log glob and inspect only enough record structure to determine `value_path` and `timestamp_path`. Avoid echoing whole logs because they may contain prompts or other private data. Choose `aggregate = "sum"` for per-request increments or `"latest"` for an already-cumulative field.
+Use `monthly:N` for recurring monthly resets or `YYYY-MM-DD` for a fixed fallback date. For rolling quotas, configure `options.reset_path`; it overrides the static reset date on every successful fetch and preserves the timestamp to the minute. Never infer a fixed weekday from the current response.
 
-### 3. Create or update plans.toml
+Inspect the actual provider response before choosing fields. Do not invent endpoints, array positions, caps, or reset dates.
 
-Include only selected plans and notifiers. Every plan needs:
+### Verified Kimi recipe
 
-- A unique `id` and human-readable `name`
-- `provider`, `unit`, `total_quota`, and `reset_cycle`
-- Provider-specific `auth`, `options`, or `headers`
+- Endpoint: `https://api.kimi.com/coding/v1/usages`
+- Weekly ratio: `usages.limit_7d.used_ratio`
+- Rolling reset: `usages.limit_7d.reset_time`
+- Header: `Authorization: Bearer ${KIM_CODE_API_KEY}` unless the user already uses another variable name
+- Percentage pacing: `total_quota = 100`, `unit = "%"`, `scale = 100`, `mode = "used"`
 
-Use `monthly:N` for recurring resets or `YYYY-MM-DD` for a fixed date. Keep general defaults unless the user requests otherwise:
+Some Kimi accounts return only newer `usages` ratio pools, while others also include legacy `usage`. Prefer the ratio pool when present.
+
+### Verified GLM recipe
+
+- Endpoint: `https://open.bigmodel.cn/api/monitor/usage/quota/limit`
+- Header: raw `Authorization: ${GLM_TOKEN_PLAN_API_KEY}`, with no `Bearer` prefix unless the user uses another variable name
+- Select the weekly entry by `unit = 6`; do not blindly use `data.limits.1` for an unverified response
+- Use its `currentValue` for consumption and `nextResetTime` for rolling reset
+- For percentage pacing, set `total_quota = 100`, `unit = "%"`, and `scale = 100 / usage_cap`
+- New plans may return `CREDIT_LIMIT`; older plans may return `TOKENS_LIMIT`
+
+If the user changes a plan's unit, migrate existing ledger values to the same unit. Otherwise a credits-to-percentage conversion looks like a cycle reset.
+
+For `local_jsonl`, verify the glob and inspect only enough record structure to determine `value_path` and `timestamp_path`. Avoid echoing whole logs because they may contain prompts or private data.
+
+## 3. Configure the recipient
+
+For GitHub Actions:
+
+- Feishu group: `type = "feishu"`, `webhook_url = "${FEISHU_WEBHOOK_URL}"`
+- Telegram: `type = "telegram"`, `bot_token`, and `chat_id`
+- Bark: `type = "bark"`, `device_key`; optional `server` and `group`
+
+For local personal Feishu delivery:
 
 ```toml
-[general]
-locale = "en"
-timezone = "Asia/Shanghai"
-ledger_path = "data/ledger.jsonl"
-workdays_only = false
-timeout = 10
+[[notifiers]]
+type = "feishu_cli"
+identity = "bot"
+# user_id = "ou_xxx" # optional; defaults to the current CLI user
 ```
 
-Required notifier fields:
-
-- Feishu: `type = "feishu"`, `webhook_url = "${FEISHU_WEBHOOK_URL}"`
-- Telegram: `type = "telegram"`, `bot_token`, and `chat_id`
-- Bark: `type = "bark"`, `device_key`; `server` and `group` are optional
+`feishu_cli` sends a full-width Card 2.0 directly to the current CLI user, with a nine-cell progress row, no redundant percentage denominator, and minute-level reset times. It requires a working `lark-cli` login, bot send-message scope, and a direct-message relationship with the recipient. No App Secret belongs in `plans.toml`.
 
 Use distinct, descriptive environment-variable names for multiple custom providers.
 
-### 4. Help with credentials without exposing them
+## 4. Configure credentials safely
 
-List each required environment-variable name and where the user sets it. Ask the user to set secrets in their own shell or in GitHub Actions Secrets, then tell you when finished.
+List each required variable and where the user sets it. Ask the user to set secrets in their own shell or GitHub Actions Secrets, then tell you when finished.
+
+For GitHub Actions, ensure `.github/workflows/morning-brief.yml` maps every referenced secret. Existing mappings include `KIM_CODE_API_KEY` and `GLM_TOKEN_PLAN_API_KEY`; add new mappings when introducing new variables.
 
 Do not generate persistent shell configuration or secret files unless the user explicitly asks. Do not echo secrets in verification commands.
 
-### 5. Validate the configuration
+## 5. Validate without sending
 
-First parse TOML without contacting external services:
+Parse TOML first:
 
 ```bash
 uv run python -c 'import tomllib; tomllib.load(open("plans.toml", "rb")); print("TOML OK")'
 ```
 
-When required credentials are available, run:
+When credentials are available:
 
 ```bash
 uv run tokenpace --config plans.toml --dry-run
 ```
 
-Confirm that:
+Use `bash -ic 'uv run tokenpace --config plans.toml --dry-run'` if the credentials require interactive `.bashrc` initialization.
 
-- Every expected plan appears in the briefing.
-- Used and remaining values have the expected unit and direction.
-- Reset dates and recommendations are plausible.
-- No `data/ledger.jsonl` entry was created by the dry run.
-- No notification was sent.
+Confirm that every expected plan appears, units and used/remaining directions are correct, rolling reset times are plausible, no ledger entry was added, and no notification was sent. Fix broken entries instead of silently leaving them in place.
 
-If a provider fails, fix its configuration rather than silently leaving a broken entry. Preserve unrelated valid plans. Common problems include missing environment variables, reversed `used`/`remaining` mode, an incorrect JSON path or scale, and an unsupported local timestamp field.
+TokenPace dry runs do not invoke notifiers. For `feishu_cli`, separately preview the actual CLI request with `lark-cli im +messages-send ... --dry-run`. A real TokenPace run requires explicit confirmation of recipient, content, and identity.
 
-### 6. Enable the selected delivery mode
+## 6. Deploy
 
-For GitHub Actions:
+### GitHub Actions (recommended)
 
-- Ensure `plans.toml` and `.github/workflows/morning-brief.yml` will be committed.
-- Map every referenced secret in the workflow environment.
+- Ensure `plans.toml` and `.github/workflows/morning-brief.yml` are included when the user asks to commit or push.
+- Confirm all referenced Secrets are configured in the fork.
 - Explain how to run **TokenPace Morning Brief** manually from the Actions tab.
-- Note that GitHub Actions cannot read logs on the user's local machine.
+- Keep the schedule at 08:30 Asia/Shanghai unless the user requests otherwise.
+- Preserve automatic `data/ledger.jsonl` commits and the upstream missing-config skip.
+- Do not use `feishu_cli` or `local_jsonl` unless the runner can actually provide those local resources.
 
-For local cron:
+### Local cron
 
-- Give a command using the repository's absolute path.
+- Use the repository's absolute path.
 - Modify crontab only if the user explicitly asks.
-- Account for the fact that cron may not inherit interactive-shell environment variables; recommend a user-controlled, permission-restricted credential mechanism rather than embedding secrets in the cron line.
+- Ensure provider variables and `lark-cli` authentication work in cron; interactive-shell variables are not inherited automatically.
+- If appropriate, use `bash -ic 'uv run tokenpace --config plans.toml'` and write logs to a user-approved location.
 
-### 7. Finish with a concise handoff
+## 7. Finish with a concise handoff
 
-Report:
+Report changed files, configured integrations, validation results, and remaining user actions. Distinguish clearly between:
 
-- The file changed and integrations configured.
-- Validation performed and its result.
-- Credentials or scheduling steps still requiring user action.
-- That a real run has not been performed, unless the user explicitly confirmed one.
+- **Configured and dry-run verified**
+- **Actually sent**
+- **Scheduled for automatic delivery**
 
-Never include secret values in the summary.
+Never claim cron or GitHub Actions is deployed merely because a manual run succeeded. Never include secret values in the summary.

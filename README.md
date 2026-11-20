@@ -29,7 +29,7 @@ Get the answer where you already are: **Feishu, Telegram, or iOS Bark** — no d
 
 <div align="center">
 
-**[1. Fork](https://github.com/scchy/token-pace/fork) · [2. Configure](plans.example.toml) · [3. Add Secrets & Run](https://github.com/scchy/token-pace/actions/workflows/morning-brief.yml)**
+**[GitHub Actions — Recommended](#option-a--github-actions-recommended) · [Local Private Card](#option-b--local-private-card--cron) · [Agent Setup](#ai-assisted-setup)**
 
 </div>
 
@@ -39,7 +39,7 @@ Open your fork or clone with a coding agent and say:
 
 > Configure TokenPace for me using the project skill. Ask which plans and notifiers I need, create plans.toml, and validate it with a dry run.
 
-[AGENTS.md](AGENTS.md) and the [`tokenpace-setup`](.agents/skills/tokenpace-setup/SKILL.md) skill guide minimal configuration, credential safety, dry-run validation, and optional scheduling — without asking for secrets in chat.
+[AGENTS.md](AGENTS.md) and the [`tokenpace-setup`](.agents/skills/tokenpace-setup/SKILL.md) skill guide minimal configuration, credential safety, dry-run validation, and optional scheduling — without asking for secrets in chat. No MCP server is required: agents can call the CLI directly, while scheduled delivery remains push-based.
 
 ## Morning Brief
 
@@ -72,40 +72,40 @@ DeepSeek API     🟢 SURPLUS
 
 ## Quick Start
 
-### Option A — GitHub Actions
+### Option A — GitHub Actions (Recommended)
 
-Run daily at **08:30 Asia/Shanghai**, with automatic ledger commits.
+**This is the reference deployment**: zero server maintenance, daily execution at **08:30 Asia/Shanghai**, and automatic ledger commits. Use it unless you need local logs or `lark-cli` direct messages.
 
 1. **Fork** this repository. Making it private is recommended because the ledger reveals usage patterns.
 2. Copy `plans.example.toml` to `plans.toml`, remove unused plans and notifiers, then commit it.
-3. Add the referenced credentials under **Settings → Secrets and variables → Actions**.
-4. Open **Actions → TokenPace Morning Brief → Run workflow** to send your first brief.
+3. Add the referenced credentials under **Settings → Secrets and variables → Actions**. The workflow already maps OpenRouter, DeepSeek, Kimi (`KIM_CODE_API_KEY`), GLM (`GLM_TOKEN_PLAN_API_KEY`), Feishu, Telegram, and Bark.
+4. Open **Actions → TokenPace Morning Brief → Run workflow** to send your first brief. New snapshots are committed to `data/ledger.jsonl` automatically.
 
 > GitHub schedules may be delayed by several minutes. Use local mode for `local_jsonl` sources on your machine.
 
-### Option B — Local or Cron
+### Option B — Local Private Card / Cron
 
-Python 3.11+ is required. [uv](https://docs.astral.sh/uv/) is recommended.
+For a personal setup, `feishu_cli` sends a **Card 2.0 directly to you** — no group and no webhook required. Python 3.11+ and [uv](https://docs.astral.sh/uv/) are required.
+
+1. Copy `plans.example.toml` to `plans.toml` and keep only your plans. For Feishu, select `type = "feishu_cli"`.
+2. Set provider credentials in your own shell and verify `lark-cli auth status --json --verify`. Do not put secrets in `plans.toml`.
+3. Preview, then explicitly run the real delivery:
 
 ```bash
-cp plans.example.toml plans.toml
-export OPENROUTER_API_KEY="sk-or-..."
-export FEISHU_WEBHOOK_URL="https://open.feishu.cn/open-apis/bot/v2/hook/..."
-
-# Preview safely: no push, no ledger write
+# Fetch real quotas; no ledger write and no notification
 uv run tokenpace --config plans.toml --dry-run
 
-# Fetch, persist, and notify
+# Write snapshots and send a private Card 2.0
 uv run tokenpace --config plans.toml
 ```
 
-Run every morning with cron:
+If credentials are exported from `.bashrc`, use `bash -ic 'uv run tokenpace --config plans.toml'` for the same behavior in a non-interactive agent or cron shell.
 
 ```cron
-30 8 * * * cd ~/token-pace && uv run tokenpace --config plans.toml >> /tmp/token-pace.log 2>&1
+30 8 * * * cd ~/token-pace && bash -ic 'uv run tokenpace --config plans.toml' >> /tmp/token-pace.log 2>&1
 ```
 
-You can also invoke `uv run token-pace` or `uv run python -m tokenpace`.
+Cron does not inherit your interactive shell automatically. Verify every required variable and `lark-cli` authentication in the cron environment before relying on the schedule. You can also invoke `uv run token-pace` or `uv run python -m tokenpace`.
 
 ## How It Works
 
@@ -148,9 +148,11 @@ reset_cycle = "monthly:1"
 api_key = "${OPENROUTER_API_KEY}"
 
 [[notifiers]]
-type = "feishu"
-webhook_url = "${FEISHU_WEBHOOK_URL}"
+type = "feishu_cli"
+identity = "bot"
 ```
+
+For a team group or GitHub Actions, replace the notifier with `type = "feishu"` and `webhook_url = "${FEISHU_WEBHOOK_URL}"`.
 
 Relative ledger paths are resolved from the configuration file. Reset cycles support:
 
@@ -174,7 +176,50 @@ See [`plans.example.toml`](plans.example.toml) for a complete multi-provider set
 
 **OpenRouter usage is cumulative for the lifetime of the API key.** Set `total_quota` to that key's lifetime budget, or use a key with its own reset cycle. Setting `monthly:1` in TokenPace does not reset OpenRouter's reported `data.usage`.
 
-`http_json.value_path` supports nested objects and array indexes, such as `data.items.0.remaining`. Set `mode = "used"` for consumed quota or `"remaining"` for remaining quota.
+`http_json.value_path` supports nested objects and array indexes, such as `data.items.0.remaining`. Set `mode = "used"` for consumed quota or `"remaining"` for remaining quota. For rolling quotas, set `options.reset_path` to an ISO timestamp, date, or Unix timestamp in the response; the next reset date then follows the provider instead of a fixed weekday, with timestamps displayed to the minute.
+
+<details>
+<summary><strong>Verified Kimi and GLM rolling-quota recipes</strong></summary>
+
+Both examples use percentage pacing and response-driven reset times. `reset_cycle` is only a static placeholder; `reset_path` wins on every fetch.
+
+```toml
+[[plans]]
+id = "kimi-code"
+name = "Kimi Coding Plan"
+provider = "http_json"
+unit = "%"
+total_quota = 100.0
+reset_cycle = "2026-11-25"
+[plans.options]
+url = "https://api.kimi.com/coding/v1/usages"
+value_path = "usages.limit_7d.used_ratio"
+reset_path = "usages.limit_7d.reset_time"
+scale = 100
+mode = "used"
+[plans.headers]
+Authorization = "Bearer ${KIM_CODE_API_KEY}"
+
+[[plans]]
+id = "glm-code"
+name = "GLM Coding Plan"
+provider = "http_json"
+unit = "%"
+total_quota = 100.0
+reset_cycle = "2026-11-27"
+[plans.options]
+url = "https://open.bigmodel.cn/api/monitor/usage/quota/limit"
+value_path = "data.limits.1.currentValue"
+reset_path = "data.limits.1.nextResetTime"
+scale = 0.0007142857142857143 # 100 / 140000
+mode = "used"
+[plans.headers]
+Authorization = "${GLM_TOKEN_PLAN_API_KEY}" # raw key, no Bearer
+```
+
+For GLM, verify that the selected entry is the weekly window (`unit = 6`) and replace `140000` in the scale formula with its `usage` cap. Do not assume the same array position for every account. When changing a plan's unit, migrate its historical ledger values to the same unit to avoid a false reset.
+
+</details>
 
 <details>
 <summary><strong>DeepSeek and custom HTTP JSON examples</strong></summary>
@@ -238,10 +283,20 @@ When `value_path` is omitted, TokenPace checks `usage.total_tokens`, `total_toke
 | Notifier | Delivery style | Required settings |
 | --- | --- | --- |
 | `feishu` | Interactive Card with progress bars and status colors | `webhook_url` |
+| `feishu_cli` | Card 2.0 direct message through local `lark-cli` | Local CLI login; optional `user_id`, `identity`, `cli_path` |
 | `telegram` | MarkdownV2 message | `bot_token`, `chat_id` |
 | `bark` | iOS push notification | `device_key`; optional `server`, `group`, `icon` |
 
+`feishu_cli` is the simplest option for a personal local setup. It sends a Card 2.0 to the current CLI user by default, without storing an App Secret in `plans.toml`. Each plan uses a full-width group with a compact nine-cell progress bar; percentage plans omit the redundant `85 / 100 %` denominator, and rolling resets are shown to the minute. The app bot needs the send-message scope and a direct-message relationship with the recipient. Use `user_id = "ou_xxx"` to override the recipient or `identity = "user"` to send as the authorized user.
+
+TokenPace's `--dry-run` never calls a notifier. To inspect the Feishu request separately, run `lark-cli im +messages-send ... --dry-run`; only a normal TokenPace run writes the ledger and sends the card.
+
 ```toml
+[[notifiers]]
+type = "feishu_cli"
+identity = "bot"
+# user_id = "ou_xxx" # optional; defaults to the current CLI user
+
 [[notifiers]]
 type = "telegram"
 bot_token = "${TELEGRAM_BOT_TOKEN}"

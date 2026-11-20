@@ -49,7 +49,11 @@ def number(value: Any, field: str) -> float:
 
 
 def snapshot(
-    plan: dict[str, Any], used: float, reset_date: date, now: datetime
+    plan: dict[str, Any],
+    used: float,
+    reset_date: date,
+    now: datetime,
+    reset_at: datetime | None = None,
 ) -> QuotaSnapshot:
     return QuotaSnapshot(
         plan_id=str(plan["id"]),
@@ -59,6 +63,7 @@ def snapshot(
         unit=str(plan.get("unit", "tokens")),
         reset_date=reset_date,
         captured_at=now,
+        reset_at=reset_at,
     )
 
 

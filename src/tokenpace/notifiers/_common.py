@@ -36,6 +36,14 @@ def exhaustion_text(metric: PlanMetrics, locale: str) -> str:
     return text(locale, "no_forecast")
 
 
+def reset_text(metric: PlanMetrics, locale: str) -> str:
+    reset_at = metric.snapshot.reset_at
+    if reset_at is not None:
+        local_reset = reset_at.astimezone(metric.snapshot.captured_at.tzinfo)
+        return text(locale, "reset_at", time=f"{local_reset:%m-%d %H:%M}")
+    return text(locale, "reset", days=metric.days_left)
+
+
 def render_text(
     metrics: list[PlanMetrics], errors: list[str], locale: str = "zh"
 ) -> str:
@@ -44,7 +52,7 @@ def render_text(
     for metric in metrics:
         snap = metric.snapshot
         per_day = text(locale, "per_day")
-        reset = text(locale, "reset", days=metric.days_left)
+        reset = reset_text(metric, locale)
         sections.extend(
             (
                 f"{snap.plan_name}   {status_badge(locale, metric.status)}",

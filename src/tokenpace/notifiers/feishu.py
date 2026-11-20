@@ -10,6 +10,7 @@ from tokenpace.notifiers._common import (
     exhaustion_text,
     post_json,
     progress_bar,
+    reset_text,
 )
 
 
@@ -32,7 +33,7 @@ def build_feishu_card(
     for metric in metrics:
         snap = metric.snapshot
         per_day = text(locale, "per_day")
-        reset = text(locale, "reset", days=metric.days_left)
+        reset = reset_text(metric, locale)
         content = (
             f"**{snap.plan_name}**　{status_badge(locale, metric.status)}\n"
             f"`{progress_bar(metric.remaining_pct)}` **{metric.remaining_pct:.1f}%** "

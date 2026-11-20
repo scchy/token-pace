@@ -16,6 +16,7 @@ class QuotaSnapshot:
     unit: str
     reset_date: date
     captured_at: datetime
+    reset_at: datetime | None = None
 
 
 @dataclass(frozen=True)
