@@ -1,0 +1,70 @@
+[general]
+timezone = "Asia/Shanghai"
+ledger_path = "data/ledger.jsonl"
+workdays_only = false
+timeout = 10
+
+[[plans]]
+id = "openrouter"
+name = "OpenRouter API"
+provider = "openrouter"
+unit = "USD"
+total_quota = 100.0
+reset_cycle = "monthly:1"
+[plans.auth]
+api_key = "${OPENROUTER_API_KEY}"
+
+[[plans]]
+id = "deepseek"
+name = "DeepSeek API"
+provider = "deepseek"
+unit = "CNY"
+total_quota = 200.0
+reset_cycle = "monthly:1"
+[plans.auth]
+api_key = "${DEEPSEEK_API_KEY}"
+
+[[plans]]
+id = "custom-coding-plan"
+name = "Coding Plan (Custom)"
+provider = "http_json"
+unit = "M tokens"
+total_quota = 50.0
+reset_cycle = "monthly:15"
+[plans.options]
+url = "https://api.example.com/v1/usage"
+value_path = "data.used_tokens"
+scale = 1e-6
+mode = "used"
+[plans.headers]
+Authorization = "Bearer ${CUSTOM_PLAN_TOKEN}"
+
+# 本机 Coding Agent 日志：默认累加当前周期内的 total_tokens。
+[[plans]]
+id = "local-agent"
+name = "Local Coding Agent"
+provider = "local_jsonl"
+unit = "M tokens"
+total_quota = 50.0
+reset_cycle = "monthly:1"
+[plans.options]
+log_glob = "~/.coding-agent/usage/*.jsonl"
+value_path = "usage.total_tokens"
+timestamp_path = "timestamp"
+scale = 1e-6
+aggregate = "sum"
+
+[[notifiers]]
+type = "feishu"
+webhook_url = "${FEISHU_WEBHOOK_URL}"
+
+# 按需取消注释；不用的通知渠道请整段删除或保持注释。
+# [[notifiers]]
+# type = "telegram"
+# bot_token = "${TELEGRAM_BOT_TOKEN}"
+# chat_id = "${TELEGRAM_CHAT_ID}"
+
+# [[notifiers]]
+# type = "bark"
+# device_key = "${BARK_DEVICE_KEY}"
+# server = "https://api.day.app"
