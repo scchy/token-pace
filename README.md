@@ -43,21 +43,10 @@ Open your fork or clone with a coding agent and say:
 
 ## Morning Brief
 
-```text
-📊 TokenPace Daily Quota Brief (11-20)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-OpenRouter API   ⚠️ FAST
-██████░░░░░░ 48.5% remaining (48.50 / 100.00 USD · 11 days to reset)
-• 7-day average: 5.60 USD/day → exhausted in 8.7 days (11-28)
-• Sustainable pace: 4.41 USD/day
-• Today: 27% too fast — keep usage within 4.41 USD.
-───────────────────────────────────────────────────────────
-DeepSeek API     🟢 SURPLUS
-█████████░░░ 76.0% remaining (152.00 / 200.00 CNY · 11 days to reset)
-• 7-day average: 8.20 CNY/day → exhausted in 18.5 days (12-08)
-• Sustainable pace: 13.82 CNY/day
-• Today: room for heavier tasks — use up to 13.82 CNY.
-```
+<div align="center">
+  <img src="assets/token-pace-feishu-card.jpg" alt="Actual TokenPace Feishu Card 2.0 with Kimi and GLM quotas" width="600"><br>
+  <sub>Actual Feishu Card 2.0: full-width plan groups, compact progress bars, and minute-level rolling reset times.</sub>
+</div>
 
 ## Why TokenPace?
 
