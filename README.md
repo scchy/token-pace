@@ -131,6 +131,7 @@ A minimal configuration looks like this:
 
 ```toml
 [general]
+locale = "en"
 timezone = "Asia/Shanghai"
 ledger_path = "data/ledger.jsonl"
 workdays_only = false
@@ -158,6 +159,8 @@ Relative ledger paths are resolved from the configuration file. Reset cycles sup
 | `monthly:N` | Reset on day N each month; shorter months use their last day |
 | `YYYY-MM-DD` | Use a fixed reset date |
 
+`locale` accepts `en` or `zh` and controls briefing titles, statuses, and advice. It defaults to `zh` for backward compatibility; the English examples select `en`.
+
 See [`plans.example.toml`](plans.example.toml) for a complete multi-provider setup.
 
 ### Providers
@@ -168,6 +171,8 @@ See [`plans.example.toml`](plans.example.toml) for a complete multi-provider set
 | `deepseek` | DeepSeek balance API, converted to usage | `plans.auth.api_key` |
 | `http_json` | Any GET JSON endpoint | `url`, `value_path`, `scale`, `mode`, custom headers |
 | `local_jsonl` | Local Coding Agent / CLI JSONL logs | `log_glob`, field mapping, scale, aggregation |
+
+**OpenRouter usage is cumulative for the lifetime of the API key.** Set `total_quota` to that key's lifetime budget, or use a key with its own reset cycle. Setting `monthly:1` in TokenPace does not reset OpenRouter's reported `data.usage`.
 
 `http_json.value_path` supports nested objects and array indexes, such as `data.items.0.remaining`. Set `mode = "used"` for consumed quota or `"remaining"` for remaining quota.
 

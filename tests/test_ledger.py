@@ -53,3 +53,31 @@ def test_invalid_or_empty_lines_do_not_break_other_plans(tmp_path: Path) -> None
     )
     assert load_daily_deltas(ledger, "p") == [2]
     assert load_daily_deltas(ledger, "missing") == []
+
+
+def test_current_snapshot_adds_latest_delta_and_ignores_stale_same_day_row(
+    tmp_path: Path,
+) -> None:
+    ledger = tmp_path / "ledger.jsonl"
+    write_rows(
+        ledger,
+        [
+            {"date": "2026-11-19", "plan_id": "p", "used": 1},
+            {"date": "2026-11-20", "plan_id": "p", "used": 2},
+        ],
+    )
+    current = QuotaSnapshot(
+        "p",
+        "Plan",
+        4,
+        10,
+        "USD",
+        date(2026, 12, 1),
+        datetime(2026, 11, 20, 9, 30, tzinfo=timezone.utc),
+    )
+    assert load_daily_deltas(
+        ledger,
+        "p",
+        before=date(2026, 11, 20),
+        current=current,
+    ) == [3]

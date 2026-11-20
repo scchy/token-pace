@@ -45,5 +45,9 @@ class Notifier(Protocol):
     name: str
 
     def send(
-        self, metrics: list[PlanMetrics], errors: list[str], cfg: dict[str, Any]
+        self,
+        metrics: list[PlanMetrics],
+        errors: list[str],
+        cfg: dict[str, Any],
+        locale: str = "zh",
     ) -> None: ...

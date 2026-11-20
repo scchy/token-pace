@@ -31,13 +31,18 @@ log_glob = "logs/*.jsonl"
     config = load_config(config_file)
     assert config.ledger_path == tmp_path / "history/ledger.jsonl"
     assert config.workdays_only is True
+    assert config.locale == "zh"
     assert config.plans[0]["total_quota"] == "7"
 
 
-def test_missing_environment_variable_is_an_error(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("value", [None, ""])
+def test_missing_or_empty_environment_variable_is_an_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, value: str | None
 ) -> None:
-    monkeypatch.delenv("TOKENPACE_MISSING", raising=False)
+    if value is None:
+        monkeypatch.delenv("TOKENPACE_MISSING", raising=False)
+    else:
+        monkeypatch.setenv("TOKENPACE_MISSING", value)
     path = tmp_path / "plans.toml"
     path.write_text(
         """
@@ -62,3 +67,24 @@ def test_reset_cycle_supports_month_end_and_fixed_dates() -> None:
     assert next_reset_date("2027-01-15", date(2026, 11, 20)) == date(2027, 1, 15)
     with pytest.raises(ConfigError):
         next_reset_date("weekly", date(2026, 11, 20))
+
+
+def test_locale_is_validated(tmp_path: Path) -> None:
+    path = tmp_path / "plans.toml"
+    template = """
+[general]
+locale = "{locale}"
+[[plans]]
+id = "p"
+name = "P"
+provider = "local_jsonl"
+total_quota = 1
+reset_cycle = "monthly:1"
+[plans.options]
+log_glob = "logs/*.jsonl"
+"""
+    path.write_text(template.format(locale="en"), encoding="utf-8")
+    assert load_config(path).locale == "en"
+    path.write_text(template.format(locale="fr"), encoding="utf-8")
+    with pytest.raises(ConfigError, match="locale"):
+        load_config(path)

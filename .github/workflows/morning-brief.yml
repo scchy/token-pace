@@ -26,7 +26,12 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           BARK_DEVICE_KEY: ${{ secrets.BARK_DEVICE_KEY }}
-        run: uv run --python 3.11 tokenpace --config plans.toml
+        run: |
+          if [ ! -f plans.toml ]; then
+            echo "plans.toml not found; skipping (copy plans.example.toml to plans.toml after forking)."
+            exit 0
+          fi
+          uv run --python 3.11 tokenpace --config plans.toml
 
       - name: Persist ledger.jsonl
         if: always()

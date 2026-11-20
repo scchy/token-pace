@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 from urllib.parse import quote
 
+from tokenpace.i18n import text
 from tokenpace.models import PlanMetrics
 from tokenpace.notifiers._common import (
     NotifierError,
@@ -16,14 +17,18 @@ class BarkNotifier:
     name = "bark"
 
     def send(
-        self, metrics: list[PlanMetrics], errors: list[str], cfg: dict[str, Any]
+        self,
+        metrics: list[PlanMetrics],
+        errors: list[str],
+        cfg: dict[str, Any],
+        locale: str = "zh",
     ) -> None:
         device_key = str(cfg.get("device_key", "")).strip()
         if not device_key:
             raise NotifierError("Bark 通知缺少 device_key")
         server = str(cfg.get("server", "https://api.day.app")).rstrip("/")
-        title = f"TokenPace 每日额度晨报 ({brief_date(metrics):%m-%d})"
-        body = render_text(metrics, errors).split("\n", 2)[-1]
+        title = f"{text(locale, 'title')} ({brief_date(metrics):%m-%d})"
+        body = render_text(metrics, errors, locale).split("\n", 2)[-1]
         payload: dict[str, Any] = {
             "title": title,
             "body": body,

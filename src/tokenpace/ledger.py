@@ -25,6 +25,7 @@ def load_daily_deltas(
     plan_id: str,
     window_days: int = 7,
     before: date | None = None,
+    current: QuotaSnapshot | None = None,
 ) -> list[float]:
     """Load per-day usage, de-duplicating dates and smoothing gaps or resets."""
     if not path.exists() or window_days <= 0:
@@ -42,6 +43,9 @@ def load_daily_deltas(
             continue
         if row.get("plan_id") == plan_id and (before is None or day < before):
             by_date[day] = used
+
+    if current is not None and current.plan_id == plan_id:
+        by_date[current.captured_at.date()] = current.used
 
     sorted_days = sorted(by_date)
     deltas: list[float] = []

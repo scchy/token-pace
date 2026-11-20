@@ -2,17 +2,20 @@ from __future__ import annotations
 
 from typing import Any
 
+from tokenpace.i18n import status_badge, text
 from tokenpace.models import PlanMetrics
 from tokenpace.notifiers._common import (
     NotifierError,
-    STATUS_BADGE,
     brief_date,
+    exhaustion_text,
     post_json,
     progress_bar,
 )
 
 
-def build_feishu_card(metrics: list[PlanMetrics], errors: list[str]) -> dict[str, Any]:
+def build_feishu_card(
+    metrics: list[PlanMetrics], errors: list[str], locale: str = "zh"
+) -> dict[str, Any]:
     statuses = {metric.status for metric in metrics}
     header_color = (
         "red"
@@ -28,18 +31,17 @@ def build_feishu_card(metrics: list[PlanMetrics], errors: list[str]) -> dict[str
     elements: list[dict[str, Any]] = []
     for metric in metrics:
         snap = metric.snapshot
-        exhaust = (
-            f"**{metric.days_until_exhaust:.1f} 天后** ({metric.exhaust_date:%m-%d})"
-            if metric.days_until_exhaust is not None and metric.exhaust_date is not None
-            else "暂无预测"
-        )
+        per_day = text(locale, "per_day")
+        reset = text(locale, "reset", days=metric.days_left)
         content = (
-            f"**{snap.plan_name}**　{STATUS_BADGE[metric.status]}\n"
-            f"`{progress_bar(metric.remaining_pct)}` **{metric.remaining_pct:.1f}%** 剩余 "
-            f"(`{metric.remaining:.2f} / {snap.total:.2f} {snap.unit}` · 距重置 **{metric.days_left}** 天)\n"
-            f"• 近 7 日均耗：`{metric.burn_rate_7d:.2f} {snap.unit}/天` → 预计 {exhaust} 耗尽\n"
-            f"• 均匀消耗线：`{metric.recommended_daily:.2f} {snap.unit}/天`\n"
-            f"• 今日建议：{metric.advice}"
+            f"**{snap.plan_name}**　{status_badge(locale, metric.status)}\n"
+            f"`{progress_bar(metric.remaining_pct)}` **{metric.remaining_pct:.1f}%** "
+            f"{text(locale, 'remaining')} "
+            f"(`{metric.remaining:.2f} / {snap.total:.2f} {snap.unit}` · **{reset}**)\n"
+            f"• {text(locale, 'burn')}: `{metric.burn_rate_7d:.2f} {snap.unit}{per_day}` "
+            f"→ {exhaustion_text(metric, locale)}\n"
+            f"• {text(locale, 'safe')}: `{metric.recommended_daily:.2f} {snap.unit}{per_day}`\n"
+            f"• {text(locale, 'advice')}: {metric.advice}"
         )
         elements.append({"tag": "markdown", "content": content})
         elements.append({"tag": "hr"})
@@ -51,7 +53,8 @@ def build_feishu_card(metrics: list[PlanMetrics], errors: list[str]) -> dict[str
         elements.append(
             {
                 "tag": "markdown",
-                "content": "**⚠️ 部分数据源拉取失败**\n" + "\n".join(f"- {e}" for e in errors),
+                "content": f"**⚠️ {text(locale, 'errors')}**\n"
+                + "\n".join(f"- {error}" for error in errors),
             }
         )
     return {
@@ -60,7 +63,7 @@ def build_feishu_card(metrics: list[PlanMetrics], errors: list[str]) -> dict[str
             "header": {
                 "title": {
                     "tag": "plain_text",
-                    "content": f"📊 TokenPace 每日额度晨报 ({brief_date(metrics):%m-%d})",
+                    "content": f"📊 {text(locale, 'title')} ({brief_date(metrics):%m-%d})",
                 },
                 "template": header_color,
             },
@@ -73,14 +76,18 @@ class FeishuNotifier:
     name = "feishu"
 
     def send(
-        self, metrics: list[PlanMetrics], errors: list[str], cfg: dict[str, Any]
+        self,
+        metrics: list[PlanMetrics],
+        errors: list[str],
+        cfg: dict[str, Any],
+        locale: str = "zh",
     ) -> None:
         url = str(cfg.get("webhook_url", "")).strip()
         if not url:
             raise NotifierError("飞书通知缺少 webhook_url")
         result = post_json(
             url,
-            build_feishu_card(metrics, errors),
+            build_feishu_card(metrics, errors, locale),
             float(cfg.get("timeout", 10)),
         )
         if isinstance(result, dict):

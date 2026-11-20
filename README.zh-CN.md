@@ -131,6 +131,7 @@ TokenPace 为每个套餐计算：
 
 ```toml
 [general]
+locale = "zh"
 timezone = "Asia/Shanghai"
 ledger_path = "data/ledger.jsonl"
 workdays_only = false
@@ -158,6 +159,8 @@ webhook_url = "${FEISHU_WEBHOOK_URL}"
 | `monthly:N` | 每月 N 日重置；小月份自动使用该月最后一天 |
 | `YYYY-MM-DD` | 使用固定重置日期 |
 
+`locale` 支持 `en` 和 `zh`，控制晨报标题、状态与建议文案。为兼容已有配置，默认值为 `zh`；英文示例显式使用 `en`。
+
 完整多平台配置见 [`plans.example.toml`](plans.example.toml)。
 
 ### 数据源
@@ -168,6 +171,8 @@ webhook_url = "${FEISHU_WEBHOOK_URL}"
 | `deepseek` | DeepSeek 余额 API，换算为已用量 | `plans.auth.api_key` |
 | `http_json` | 任意 GET JSON 接口 | `url`、`value_path`、`scale`、`mode`、自定义 Header |
 | `local_jsonl` | 本机 Coding Agent / CLI JSONL 日志 | `log_glob`、字段映射、换算系数、聚合方式 |
+
+**OpenRouter 的 `data.usage` 是 API Key 的历史累计用量。** `total_quota` 应填写该 Key 的总预算，或配合自身带重置周期的 Key 使用；仅在 TokenPace 中设置 `monthly:1` 不会让 OpenRouter 的累计用量归零。
 
 `http_json.value_path` 支持嵌套对象和数组下标，例如 `data.items.0.remaining`。字段表示已用量时设置 `mode = "used"`，表示剩余量时设置为 `"remaining"`。
 

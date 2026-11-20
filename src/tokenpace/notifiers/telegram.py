@@ -3,11 +3,12 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from tokenpace.i18n import status_badge, text
 from tokenpace.models import PlanMetrics
 from tokenpace.notifiers._common import (
     NotifierError,
-    STATUS_BADGE,
     brief_date,
+    exhaustion_text,
     post_json,
     progress_bar,
 )
@@ -19,28 +20,36 @@ def _escape(value: Any) -> str:
     return _MARKDOWN_SPECIAL.sub(r"\\\1", str(value))
 
 
-def build_telegram_text(metrics: list[PlanMetrics], errors: list[str]) -> str:
-    lines = [f"📊 *TokenPace 每日额度晨报 \\({_escape(f'{brief_date(metrics):%m-%d}')}\\)*", ""]
+def _escape_code(value: Any) -> str:
+    return str(value).replace("\\", "\\\\").replace("`", "\\`")
+
+
+def build_telegram_text(
+    metrics: list[PlanMetrics], errors: list[str], locale: str = "zh"
+) -> str:
+    title = _escape(text(locale, "title"))
+    lines = [f"📊 *{title} \\({_escape(f'{brief_date(metrics):%m-%d}')}\\)*", ""]
     for metric in metrics:
         snap = metric.snapshot
-        exhaust = (
-            f"{metric.days_until_exhaust:.1f} 天后 ({metric.exhaust_date:%m-%d})"
-            if metric.days_until_exhaust is not None and metric.exhaust_date is not None
-            else "暂无预测"
-        )
+        per_day = text(locale, "per_day")
+        reset = _escape(text(locale, "reset", days=metric.days_left))
         lines.extend(
             (
-                f"*{_escape(snap.plan_name)}* {_escape(STATUS_BADGE[metric.status])}",
-                f"`{progress_bar(metric.remaining_pct)}` *{_escape(f'{metric.remaining_pct:.1f}')}*% 剩余",
-                f"`{_escape(f'{metric.remaining:.2f} / {snap.total:.2f} {snap.unit}')}` · 距重置 *{metric.days_left}* 天",
-                f"• 近 7 日均耗：`{_escape(f'{metric.burn_rate_7d:.2f} {snap.unit}/天')}` → 预计 {_escape(exhaust)} 耗尽",
-                f"• 均匀消耗线：`{_escape(f'{metric.recommended_daily:.2f} {snap.unit}/天')}`",
-                f"• 今日建议：{_escape(metric.advice)}",
+                f"*{_escape(snap.plan_name)}* {_escape(status_badge(locale, metric.status))}",
+                f"`{progress_bar(metric.remaining_pct)}` "
+                f"*{_escape(f'{metric.remaining_pct:.1f}')}*% {_escape(text(locale, 'remaining'))}",
+                f"`{_escape_code(f'{metric.remaining:.2f} / {snap.total:.2f} {snap.unit}')}` · *{reset}*",
+                f"• {_escape(text(locale, 'burn'))}: "
+                f"`{_escape_code(f'{metric.burn_rate_7d:.2f} {snap.unit}{per_day}')}` "
+                f"→ {_escape(exhaustion_text(metric, locale))}",
+                f"• {_escape(text(locale, 'safe'))}: "
+                f"`{_escape_code(f'{metric.recommended_daily:.2f} {snap.unit}{per_day}')}`",
+                f"• {_escape(text(locale, 'advice'))}: {_escape(metric.advice)}",
                 "",
             )
         )
     if errors:
-        lines.append("⚠️ *部分数据源拉取失败*")
+        lines.append(f"⚠️ *{_escape(text(locale, 'errors'))}*")
         lines.extend(f"• {_escape(error)}" for error in errors)
     return "\n".join(lines).strip()
 
@@ -49,7 +58,11 @@ class TelegramNotifier:
     name = "telegram"
 
     def send(
-        self, metrics: list[PlanMetrics], errors: list[str], cfg: dict[str, Any]
+        self,
+        metrics: list[PlanMetrics],
+        errors: list[str],
+        cfg: dict[str, Any],
+        locale: str = "zh",
     ) -> None:
         token = str(cfg.get("bot_token", "")).strip()
         chat_id = cfg.get("chat_id")
@@ -59,7 +72,7 @@ class TelegramNotifier:
             f"https://api.telegram.org/bot{token}/sendMessage",
             {
                 "chat_id": chat_id,
-                "text": build_telegram_text(metrics, errors),
+                "text": build_telegram_text(metrics, errors, locale),
                 "parse_mode": "MarkdownV2",
                 "disable_web_page_preview": True,
             },

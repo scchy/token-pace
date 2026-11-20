@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from tokenpace.i18n import SUPPORTED_LOCALES
+
 _ENV_VAR = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
 
@@ -22,6 +24,7 @@ class AppConfig:
     timezone: str
     ledger_path: Path
     workdays_only: bool
+    locale: str
     timeout: float
     plans: list[dict[str, Any]]
     notifiers: list[dict[str, Any]]
@@ -31,7 +34,7 @@ def _expand_env(value: Any) -> Any:
     if isinstance(value, str):
         def replace(match: re.Match[str]) -> str:
             name = match.group(1)
-            if name not in os.environ:
+            if not os.environ.get(name):
                 raise ConfigError(f"缺少环境变量 {name}（配置中的 ${{{name}}}）")
             return os.environ[name]
 
@@ -71,6 +74,9 @@ def load_config(path: str | Path) -> AppConfig:
     workdays_only = general.get("workdays_only", False)
     if not isinstance(workdays_only, bool):
         raise ConfigError("general.workdays_only 必须是布尔值")
+    locale = str(general.get("locale", "zh")).lower()
+    if locale not in SUPPORTED_LOCALES:
+        raise ConfigError("general.locale 仅支持 en 或 zh")
     try:
         timeout = float(general.get("timeout", 10))
     except (TypeError, ValueError) as exc:
@@ -116,6 +122,7 @@ def load_config(path: str | Path) -> AppConfig:
         timezone=timezone,
         ledger_path=ledger_path,
         workdays_only=workdays_only,
+        locale=locale,
         timeout=timeout,
         plans=plans,
         notifiers=notifiers,

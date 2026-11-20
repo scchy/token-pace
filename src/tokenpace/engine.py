@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
+from tokenpace.i18n import text
 from tokenpace.models import PlanMetrics, PlanStatus, QuotaSnapshot
 
 
@@ -25,6 +26,7 @@ def compute_metrics(
     daily_deltas: list[float],
     today: date,
     workdays_only: bool = False,
+    locale: str = "zh",
 ) -> PlanMetrics:
     remaining = max(0.0, snap.total - snap.used)
     remaining_pct = remaining / snap.total * 100.0 if snap.total > 0 else 0.0
@@ -33,7 +35,7 @@ def compute_metrics(
     burn_rate_7d = sum(recent) / len(recent) if recent else 0.0
     recommended_daily = remaining / days_left
 
-    if burn_rate_7d > 0:
+    if burn_rate_7d > 0 and remaining > 0:
         days_until_exhaust = remaining / burn_rate_7d
         exhaust_date = today + timedelta(days=int(days_until_exhaust))
         pacing_ratio = (
@@ -47,28 +49,25 @@ def compute_metrics(
         pacing_ratio = 0.0
 
     status: PlanStatus
+    over_pct = 0.0
     if remaining <= 0:
         status = "exhausted"
-        advice = "额度已耗尽，请切换备用通道或等待重置。"
     elif pacing_ratio == 0.0:
         status = "idle"
-        advice = f"近 7 天无消耗，今日起可按 {recommended_daily:.2f} {snap.unit}/天 均匀使用。"
     elif pacing_ratio > 1.2:
         status = "fast"
         over_pct = (pacing_ratio - 1.0) * 100
-        advice = (
-            f"消耗偏快 (+{over_pct:.0f}%)，将提前耗尽。"
-            f"建议今日控制在 {recommended_daily:.2f} {snap.unit} 以内，常规任务可切换轻量模型。"
-        )
     elif pacing_ratio < 0.8:
         status = "surplus"
-        advice = (
-            "额度充裕，周期末将有盈余。"
-            f"今日可放心使用至 {recommended_daily:.2f} {snap.unit}，重度任务可往前排。"
-        )
     else:
         status = "healthy"
-        advice = f"节奏健康，维持当前频率（建议上限 {recommended_daily:.2f} {snap.unit}/天）。"
+    advice = text(
+        locale,
+        f"advice_{status}",
+        recommended=recommended_daily,
+        unit=snap.unit,
+        over_pct=over_pct,
+    )
 
     return PlanMetrics(
         snapshot=snap,

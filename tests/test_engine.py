@@ -39,6 +39,17 @@ def test_healthy_surplus_idle_and_exhausted() -> None:
     assert exhausted.status == "exhausted"
     assert exhausted.remaining_pct == 0
     assert exhausted.recommended_daily == 0
+    assert exhausted.days_until_exhaust is None
+    assert exhausted.exhaust_date is None
+
+
+def test_english_advice_and_exhausted_forecast() -> None:
+    today = date(2026, 11, 20)
+    healthy = compute_metrics(snapshot(100), [100 / 11], today, locale="en")
+    assert "Healthy pace" in healthy.advice
+    exhausted = compute_metrics(snapshot(200), [10], today, locale="en")
+    assert exhausted.days_until_exhaust is None
+    assert exhausted.advice == "Quota exhausted. Switch to a backup provider or wait for the reset."
 
 
 def test_burn_rate_uses_available_days_only() -> None:

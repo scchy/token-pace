@@ -45,6 +45,7 @@ Use Python 3.11 or newer. Keep `pyproject.toml` runtime `dependencies` empty. Py
 - `src/tokenpace/config.py`: TOML parsing, environment expansion, and reset dates
 - `src/tokenpace/ledger.py`: append-only snapshots and daily usage reconstruction
 - `src/tokenpace/engine.py`: pure pacing calculations and recommendations
+- `src/tokenpace/i18n.py`: English and Chinese briefing text
 - `src/tokenpace/providers/`: remote and local usage adapters
 - `src/tokenpace/notifiers/`: briefing formatting and delivery
 - `src/tokenpace/cli.py`: orchestration, failure isolation, and dry-run behavior

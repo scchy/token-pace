@@ -50,10 +50,14 @@ def run(argv: list[str] | None = None) -> int:
             provider = get_provider(str(plan["provider"]))
             snap = provider.fetch(plan, reset_date, now)
             deltas = load_daily_deltas(
-                config.ledger_path, snap.plan_id, before=now.date()
+                config.ledger_path, snap.plan_id, before=now.date(), current=snap
             )
             metric = compute_metrics(
-                snap, deltas, now.date(), workdays_only=config.workdays_only
+                snap,
+                deltas,
+                now.date(),
+                workdays_only=config.workdays_only,
+                locale=config.locale,
             )
             if not args.dry_run:
                 append_snapshot(config.ledger_path, snap)
@@ -61,7 +65,7 @@ def run(argv: list[str] | None = None) -> int:
         except Exception as exc:
             errors.append(f"{plan_name}：{exc}")
 
-    print(render_text(metrics, errors))
+    print(render_text(metrics, errors, config.locale))
     if args.dry_run:
         return 1 if errors else 0
 
@@ -71,7 +75,7 @@ def run(argv: list[str] | None = None) -> int:
         try:
             notifier = get_notifier(notifier_type)
             notifier_cfg.setdefault("timeout", config.timeout)
-            notifier.send(metrics, errors, notifier_cfg)
+            notifier.send(metrics, errors, notifier_cfg, config.locale)
         except Exception as exc:
             notification_failed = True
             print(f"通知失败（{notifier_type}）：{exc}", file=sys.stderr)

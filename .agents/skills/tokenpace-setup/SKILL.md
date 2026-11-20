@@ -33,6 +33,7 @@ Collect only details that cannot be inferred:
 - Plans to monitor: OpenRouter, DeepSeek, custom HTTP JSON, or local JSONL.
 - For each plan: display name, unit, total quota, and reset cycle.
 - Notification channels: Feishu, Telegram, Bark, several of them, or local output only.
+- Briefing language: `locale = "en"` or `"zh"`; existing configurations default to `zh`.
 - Deployment: GitHub Actions or local/cron.
 
 Use concise questions and sensible defaults from `plans.example.toml`. Do not invent endpoint paths, local log locations, quota amounts, or reset dates.
@@ -53,6 +54,7 @@ Use `monthly:N` for recurring resets or `YYYY-MM-DD` for a fixed date. Keep gene
 
 ```toml
 [general]
+locale = "en"
 timezone = "Asia/Shanghai"
 ledger_path = "data/ledger.jsonl"
 workdays_only = false

@@ -11,7 +11,7 @@ from tokenpace.notifiers.feishu import FeishuNotifier, build_feishu_card
 from tokenpace.notifiers.telegram import TelegramNotifier, build_telegram_text
 
 
-def metrics(name: str = "Plan [A]") -> list[PlanMetrics]:
+def metrics(name: str = "Plan [A]", locale: str = "zh") -> list[PlanMetrics]:
     snap = QuotaSnapshot(
         plan_id="p",
         plan_name=name,
@@ -21,7 +21,7 @@ def metrics(name: str = "Plan [A]") -> list[PlanMetrics]:
         reset_date=date(2026, 12, 1),
         captured_at=datetime(2026, 11, 20, tzinfo=timezone.utc),
     )
-    return [compute_metrics(snap, [10] * 7, date(2026, 11, 20))]
+    return [compute_metrics(snap, [10] * 7, date(2026, 11, 20), locale=locale)]
 
 
 def test_telegram_escapes_every_markdown_v2_special_character() -> None:
@@ -33,6 +33,28 @@ def test_telegram_escapes_every_markdown_v2_special_character() -> None:
         r"*Special \_\*\[\]\(\)\~\`\>\#\+\-\=\|\{\}\.\! \\ path*"
     )
     assert r"failure \(API\)\. \+ \-" in text
+
+
+def test_telegram_inline_code_does_not_escape_decimal_points() -> None:
+    text = build_telegram_text(metrics(), [])
+    code_spans = [line.split("`")[1] for line in text.splitlines() if "`" in line and "USD" in line]
+    assert code_spans
+    assert all("\\." not in span for span in code_spans)
+    assert "`50.00 / 100.00 USD`" in text
+
+
+def test_english_briefing_is_english_end_to_end() -> None:
+    localized = metrics(locale="en")
+    telegram = build_telegram_text(localized, ["Provider failed"], locale="en")
+    card = build_feishu_card(localized, ["Provider failed"], locale="en")
+
+    assert "TokenPace Daily Quota Brief" in telegram
+    assert "7\\-day average" in telegram
+    assert "Sustainable pace" in telegram
+    assert "Some providers failed" in telegram
+    assert "Consumption is" in telegram
+    assert "TokenPace Daily Quota Brief" in card["card"]["header"]["title"]["content"]
+    assert "Sustainable pace" in card["card"]["elements"][0]["content"]
 
 
 def test_telegram_and_feishu_handle_empty_metrics() -> None:
