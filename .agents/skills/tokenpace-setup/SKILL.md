@@ -127,7 +127,7 @@ TokenPace dry runs do not invoke notifiers. For `feishu_cli`, separately preview
 - Ensure `plans.toml` and `.github/workflows/morning-brief.yml` are included when the user asks to commit or push.
 - Confirm all referenced Secrets are configured in the generated private repository.
 - Explain how to run **TokenPace Morning Brief** manually from the Actions tab.
-- Keep the schedule at 08:30 Asia/Shanghai unless the user requests otherwise.
+- Keep the schedule at 10:30 Asia/Shanghai unless the user requests otherwise.
 - Preserve automatic `data/ledger.jsonl` commits with `git add -f`, `[skip ci]`, and `git pull --rebase`, plus the upstream missing-config skip. Branch protection must allow the bot's persistence strategy.
 - For a config-only private repository, copy both files from `examples/config-only-repo` and use its `uvx` workflow instead of the source-checkout workflow. Add new provider secret mappings to both workflows.
 - Do not use `feishu_cli` or `local_jsonl` unless the runner can actually provide those local resources.

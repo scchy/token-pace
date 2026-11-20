@@ -63,7 +63,7 @@ Open your fork or clone with a coding agent and say:
 
 ### Option A — GitHub Actions (Recommended)
 
-**This is the reference deployment**: zero server maintenance, daily execution at **08:30 Asia/Shanghai**, and automatic ledger commits. Use it unless you need local logs or `lark-cli` direct messages.
+**This is the reference deployment**: zero server maintenance, daily execution at **10:30 Asia/Shanghai**, and automatic ledger commits. Use it unless you need local logs or `lark-cli` direct messages.
 
 1. Click **[Use this template](https://github.com/scchy/token-pace/generate)** and create a **Private** repository. GitHub does not allow changing a public fork to private; a private template copy keeps your usage history private.
 2. Copy `plans.example.toml` to `plans.toml`, remove unused plans and notifiers, then commit it.
@@ -97,7 +97,7 @@ uv run tokenpace --config plans.toml
 If credentials are exported from `.bashrc`, use `bash -ic 'uv run tokenpace --config plans.toml'` for the same behavior in a non-interactive agent or cron shell.
 
 ```cron
-30 8 * * * cd ~/token-pace && bash -ic 'uv run tokenpace --config plans.toml' >> /tmp/token-pace.log 2>&1
+30 10 * * * cd ~/token-pace && bash -ic 'uv run tokenpace --config plans.toml' >> /tmp/token-pace.log 2>&1
 ```
 
 Cron does not inherit your interactive shell automatically. Verify every required variable and `lark-cli` authentication in the cron environment before relying on the schedule. You can also invoke `uv run token-pace` or `uv run python -m tokenpace`.

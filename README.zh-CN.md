@@ -63,7 +63,7 @@ TokenPace 将分散在各个平台的 AI 额度汇总成一份可以直接指导
 
 ### 方式一：GitHub Actions（推荐）
 
-**这是项目的标准示范部署**：零服务器运维，每天北京时间 **08:30** 自动运行并提交账本。除非需要本机日志或 `lark-cli` 私聊，否则优先使用此方式。
+**这是项目的标准示范部署**：零服务器运维，每天北京时间 **10:30** 自动运行并提交账本。除非需要本机日志或 `lark-cli` 私聊，否则优先使用此方式。
 
 1. 点击 **[Use this template](https://github.com/scchy/token-pace/generate)** 创建 **Private（私有）仓库**。GitHub 不允许将公开仓库的 Fork 转为私有，使用模板可直接保护历史账本与使用习惯。
 2. 复制 `plans.example.toml` 为 `plans.toml`，删除不需要的套餐和通知渠道，然后提交。
@@ -97,7 +97,7 @@ uv run tokenpace --config plans.toml
 如果密钥配置在 `.bashrc`，在 Agent 或 cron 的非交互环境中可使用 `bash -ic 'uv run tokenpace --config plans.toml'`。
 
 ```cron
-30 8 * * * cd ~/token-pace && bash -ic 'uv run tokenpace --config plans.toml' >> /tmp/token-pace.log 2>&1
+30 10 * * * cd ~/token-pace && bash -ic 'uv run tokenpace --config plans.toml' >> /tmp/token-pace.log 2>&1
 ```
 
 cron 不会自动继承交互式 shell 环境。启用前请逐一确认所需环境变量和 `lark-cli` 登录态在 cron 中可用。也支持 `uv run token-pace` 和 `uv run python -m tokenpace`。
