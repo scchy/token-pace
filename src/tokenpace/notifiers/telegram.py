@@ -12,7 +12,7 @@ from tokenpace.notifiers._common import (
     progress_bar,
 )
 
-_MARKDOWN_SPECIAL = re.compile(r"([_*\[\]()~`>#+\-=|{}.!])")
+_MARKDOWN_SPECIAL = re.compile(r"([\\_*\[\]()~`>#+\-=|{}.!])")
 
 
 def _escape(value: Any) -> str:

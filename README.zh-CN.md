@@ -10,6 +10,7 @@
 
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Zero Runtime Dependencies](https://img.shields.io/badge/Runtime-Zero%20Dependencies-2EA44F)](#核心特性)
+[![CI](https://github.com/scchy/token-pace/actions/workflows/ci.yml/badge.svg)](https://github.com/scchy/token-pace/actions/workflows/ci.yml)
 [![Morning Brief](https://github.com/scchy/token-pace/actions/workflows/morning-brief.yml/badge.svg)](https://github.com/scchy/token-pace/actions/workflows/morning-brief.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-F0AD4E)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/scchy/token-pace?style=social)](https://github.com/scchy/token-pace/stargazers)
@@ -26,20 +27,19 @@ TokenPace 将分散在各个平台的 AI 额度汇总成一份可以直接指导
 
 晨报直接推送到你已经在看的 **飞书、Telegram 或 iOS Bark**，无需仪表盘、数据库、服务器或常驻进程。
 
+<div align="center">
+
+**[1. Fork](https://github.com/scchy/token-pace/fork) · [2. 配置套餐](plans.example.toml) · [3. 添加 Secrets 并运行](https://github.com/scchy/token-pace/actions/workflows/morning-brief.yml)**
+
+</div>
+
 ## 让 AI Agent 帮你配置
 
-Fork 或 clone 仓库后，直接使用支持项目指令的 Coding Agent 打开项目，然后对它说：
+使用 Coding Agent 打开你的 Fork 或本地 clone，然后对它说：
 
 > 使用项目里的 skill 帮我配置 TokenPace。询问我需要监控的套餐和通知渠道，创建 plans.toml，并通过 dry run 验证。
 
-仓库已内置 [AGENTS.md](AGENTS.md) 和项目级 [`tokenpace-setup`](.agents/skills/tokenpace-setup/SKILL.md) skill。支持项目技能的 Agent 会自动发现它，其他 Agent 也可以直接遵循 `AGENTS.md`。
-
-Agent 将协助你：
-
-- 只选择实际使用的数据源和通知渠道，生成最小 `plans.toml`。
-- 配置环境变量占位符，不会要求你在聊天中粘贴密钥。
-- 校验 TOML 并执行安全 dry run，不写账本、不发送通知。
-- 按需准备 GitHub Actions 或本机 cron 定时任务。
+[AGENTS.md](AGENTS.md) 和 [`tokenpace-setup`](.agents/skills/tokenpace-setup/SKILL.md) skill 会引导 Agent 生成最小配置、保护凭证、执行 dry-run，并按需设置定时任务，无需在聊天中提供密钥。
 
 ## 晨报预览
 
@@ -272,6 +272,17 @@ uv run tokenpace --help
 
 - **数据源**：实现 `Provider.fetch()`，并在 `src/tokenpace/providers/__init__.py` 注册。
 - **通知渠道**：实现 `Notifier.send()`，并在 `src/tokenpace/notifiers/__init__.py` 注册。
+
+每次 push 和 Pull Request 都会通过 [CI](.github/workflows/ci.yml) 运行完整测试。通知端测试全部使用本地 Mock，不需要任何凭证。
+
+## Roadmap
+
+| 计划新增 | 社区贡献 |
+| --- | --- |
+| Discord 通知渠道 | 欢迎 PR |
+| Slack 通知渠道 | 欢迎 PR |
+| 通用 JSON Webhook 通知渠道 | 欢迎 PR |
+| Kimi、Anthropic、智谱等更多 Provider 预设 | 欢迎 PR |
 
 ## Star History
 

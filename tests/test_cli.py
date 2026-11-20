@@ -2,11 +2,6 @@ import json
 from pathlib import Path
 
 from tokenpace.cli import run
-from tokenpace.engine import compute_metrics
-from tokenpace.models import QuotaSnapshot
-from tokenpace.notifiers.feishu import build_feishu_card
-from tokenpace.notifiers.telegram import build_telegram_text
-from datetime import date, datetime, timezone
 
 
 def test_cli_dry_run_then_persists_ledger(tmp_path: Path, capsys) -> None:
@@ -40,23 +35,3 @@ scale = 1e-6
     rows = [json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines()]
     assert len(rows) == 1
     assert rows[0]["used"] == 2
-
-
-def test_notifier_payloads_include_metrics_and_errors() -> None:
-    snap = QuotaSnapshot(
-        "p",
-        "Plan [A]",
-        50,
-        100,
-        "USD",
-        date(2026, 12, 1),
-        datetime(2026, 11, 20, tzinfo=timezone.utc),
-    )
-    metrics = [compute_metrics(snap, [10] * 7, date(2026, 11, 20))]
-    card = build_feishu_card(metrics, ["Broken source"])
-    assert card["msg_type"] == "interactive"
-    assert card["card"]["header"]["template"] == "orange"
-    assert "Broken source" in str(card)
-    telegram = build_telegram_text(metrics, [])
-    assert "Plan \\[A\\]" in telegram
-    assert "偏快" in telegram

@@ -1,0 +1,147 @@
+import json
+from datetime import date, datetime, timezone
+
+import pytest
+
+from tokenpace.engine import compute_metrics
+from tokenpace.models import PlanMetrics, QuotaSnapshot
+from tokenpace.notifiers._common import NotifierError
+from tokenpace.notifiers.bark import BarkNotifier
+from tokenpace.notifiers.feishu import FeishuNotifier, build_feishu_card
+from tokenpace.notifiers.telegram import TelegramNotifier, build_telegram_text
+
+
+def metrics(name: str = "Plan [A]") -> list[PlanMetrics]:
+    snap = QuotaSnapshot(
+        plan_id="p",
+        plan_name=name,
+        used=50,
+        total=100,
+        unit="USD",
+        reset_date=date(2026, 12, 1),
+        captured_at=datetime(2026, 11, 20, tzinfo=timezone.utc),
+    )
+    return [compute_metrics(snap, [10] * 7, date(2026, 11, 20))]
+
+
+def test_telegram_escapes_every_markdown_v2_special_character() -> None:
+    special = r"Special _*[]()~`>#+-=|{}.! \ path"
+    text = build_telegram_text(metrics(special), ["failure (API). + -"])
+
+    name_line = next(line for line in text.splitlines() if "Special" in line)
+    assert name_line.startswith(
+        r"*Special \_\*\[\]\(\)\~\`\>\#\+\-\=\|\{\}\.\! \\ path*"
+    )
+    assert r"failure \(API\)\. \+ \-" in text
+
+
+def test_telegram_and_feishu_handle_empty_metrics() -> None:
+    telegram = build_telegram_text([], [])
+    card = build_feishu_card([], [])
+
+    assert "TokenPace" in telegram
+    assert "部分数据源拉取失败" not in telegram
+    assert card["card"]["header"]["template"] == "grey"
+    assert card["card"]["elements"] == []
+    json.dumps(card)
+
+
+def test_partial_provider_failure_is_rendered_without_trailing_divider() -> None:
+    error = "OpenRouter: timeout (10s). retry + fallback"
+    card = build_feishu_card(metrics(), [error])
+    telegram = build_telegram_text(metrics(), [error])
+
+    elements = card["card"]["elements"]
+    assert [element["tag"] for element in elements[-3:]] == ["markdown", "hr", "markdown"]
+    assert error in elements[-1]["content"]
+    assert card["card"]["header"]["template"] == "orange"
+    assert "部分数据源拉取失败" in telegram
+    assert r"timeout \(10s\)\. retry \+ fallback" in telegram
+    json.dumps(card)
+
+
+def test_feishu_send_uses_card_payload_and_handles_api_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = []
+
+    def succeed(url, payload, timeout):
+        calls.append((url, payload, timeout))
+        return {"code": 0}
+
+    monkeypatch.setattr("tokenpace.notifiers.feishu.post_json", succeed)
+    FeishuNotifier().send(metrics(), [], {"webhook_url": "https://example.test/hook", "timeout": 3})
+    assert calls[0][0] == "https://example.test/hook"
+    assert calls[0][1]["msg_type"] == "interactive"
+    assert calls[0][2] == 3
+
+    monkeypatch.setattr(
+        "tokenpace.notifiers.feishu.post_json",
+        lambda *args: {"code": 19021, "msg": "invalid card"},
+    )
+    with pytest.raises(NotifierError, match="19021"):
+        FeishuNotifier().send([], [], {"webhook_url": "https://example.test/hook"})
+
+
+def test_telegram_send_uses_markdown_v2_and_handles_api_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = []
+
+    def succeed(url, payload, timeout):
+        calls.append((url, payload, timeout))
+        return {"ok": True}
+
+    monkeypatch.setattr("tokenpace.notifiers.telegram.post_json", succeed)
+    TelegramNotifier().send(metrics("A.B"), [], {"bot_token": "token", "chat_id": "42"})
+    assert calls[0][0].endswith("/sendMessage")
+    assert calls[0][1]["parse_mode"] == "MarkdownV2"
+    assert calls[0][1]["chat_id"] == "42"
+    assert "A\\.B" in calls[0][1]["text"]
+
+    monkeypatch.setattr(
+        "tokenpace.notifiers.telegram.post_json",
+        lambda *args: {"ok": False, "description": "can't parse entities"},
+    )
+    with pytest.raises(NotifierError, match="can't parse entities"):
+        TelegramNotifier().send([], [], {"bot_token": "token", "chat_id": "42"})
+
+
+def test_bark_send_supports_errors_and_encodes_device_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = []
+
+    def succeed(url, payload, timeout):
+        calls.append((url, payload, timeout))
+        return {"code": 200}
+
+    monkeypatch.setattr("tokenpace.notifiers.bark.post_json", succeed)
+    BarkNotifier().send(
+        [],
+        ["Provider failed"],
+        {"device_key": "key/a", "server": "https://bark.example.test/"},
+    )
+    assert calls[0][0] == "https://bark.example.test/key%2Fa"
+    assert calls[0][1]["group"] == "TokenPace"
+    assert "Provider failed" in calls[0][1]["body"]
+
+    monkeypatch.setattr(
+        "tokenpace.notifiers.bark.post_json",
+        lambda *args: {"code": 400, "message": "bad request"},
+    )
+    with pytest.raises(NotifierError, match="bad request"):
+        BarkNotifier().send([], [], {"device_key": "key"})
+
+
+@pytest.mark.parametrize(
+    ("notifier", "config", "message"),
+    [
+        (FeishuNotifier(), {}, "webhook_url"),
+        (TelegramNotifier(), {}, "bot_token"),
+        (BarkNotifier(), {}, "device_key"),
+    ],
+)
+def test_notifiers_reject_missing_required_config(notifier, config, message) -> None:
+    with pytest.raises(NotifierError, match=message):
+        notifier.send([], [], config)

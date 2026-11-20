@@ -10,6 +10,7 @@ Your AI token pacer — a zero-maintenance daily quota briefing with **zero runt
 
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Zero Runtime Dependencies](https://img.shields.io/badge/Runtime-Zero%20Dependencies-2EA44F)](#why-tokenpace)
+[![CI](https://github.com/scchy/token-pace/actions/workflows/ci.yml/badge.svg)](https://github.com/scchy/token-pace/actions/workflows/ci.yml)
 [![Morning Brief](https://github.com/scchy/token-pace/actions/workflows/morning-brief.yml/badge.svg)](https://github.com/scchy/token-pace/actions/workflows/morning-brief.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-F0AD4E)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/scchy/token-pace?style=social)](https://github.com/scchy/token-pace/stargazers)
@@ -26,20 +27,19 @@ TokenPace turns scattered AI balances into one actionable morning brief. It comb
 
 Get the answer where you already are: **Feishu, Telegram, or iOS Bark** — no dashboard, database, server, or always-on process.
 
+<div align="center">
+
+**[1. Fork](https://github.com/scchy/token-pace/fork) · [2. Configure](plans.example.toml) · [3. Add Secrets & Run](https://github.com/scchy/token-pace/actions/workflows/morning-brief.yml)**
+
+</div>
+
 ## AI-Assisted Setup
 
-Fork or clone the repository, open it with your coding agent, and say:
+Open your fork or clone with a coding agent and say:
 
 > Configure TokenPace for me using the project skill. Ask which plans and notifiers I need, create plans.toml, and validate it with a dry run.
 
-The repository includes [AGENTS.md](AGENTS.md) and the project-local [`tokenpace-setup`](.agents/skills/tokenpace-setup/SKILL.md) skill. Compatible agents discover the skill automatically; others can follow `AGENTS.md` directly.
-
-Your agent will help you:
-
-- Select only the providers and notifiers you actually use, then create a minimal `plans.toml`.
-- Configure environment-variable placeholders without asking you to paste secrets into chat.
-- Validate the TOML and run a safe dry run with no ledger writes or notifications.
-- Prepare GitHub Actions or local cron scheduling when requested.
+[AGENTS.md](AGENTS.md) and the [`tokenpace-setup`](.agents/skills/tokenpace-setup/SKILL.md) skill guide minimal configuration, credential safety, dry-run validation, and optional scheduling — without asking for secrets in chat.
 
 ## Morning Brief
 
@@ -272,6 +272,17 @@ The extension surface is intentionally small:
 
 - **Provider**: implement `Provider.fetch()` and register it in `src/tokenpace/providers/__init__.py`.
 - **Notifier**: implement `Notifier.send()` and register it in `src/tokenpace/notifiers/__init__.py`.
+
+Every push and pull request runs the full test suite through [CI](.github/workflows/ci.yml). Notifier tests use local mocks and require no credentials.
+
+## Roadmap
+
+| Planned addition | Contribution welcome |
+| --- | --- |
+| Discord notifier | PR welcome |
+| Slack notifier | PR welcome |
+| Generic JSON webhook notifier | PR welcome |
+| More provider presets, including Kimi, Anthropic, and Zhipu | PR welcome |
 
 ## Star History
 
