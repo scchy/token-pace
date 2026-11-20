@@ -7,6 +7,8 @@ description: Configure and deploy TokenPace after a fork or clone, with GitHub A
 
 Configure the checked-out TokenPace repository for the user. Make the changes rather than only providing a tutorial. Recommend **GitHub Actions first** for zero-maintenance deployment; use local cron and `feishu_cli` when the user needs local logs, existing CLI authentication, or private Feishu cards.
 
+For open-source users, recommend **Use this template → Private**, not Fork: public forks cannot be made private and the ledger reveals usage patterns. For a minimal personal deployment that follows upstream fixes without source merges, offer `examples/config-only-repo` with its `uvx` workflow. Suggest pinning `git+https://github.com/scchy/token-pace.git` to a release tag when reproducibility matters.
+
 ## Safety rules
 
 - Never ask for API keys, tokens, webhook URLs containing secrets, or chat credentials in chat.
@@ -120,11 +122,13 @@ TokenPace dry runs do not invoke notifiers. For `feishu_cli`, separately preview
 
 ### GitHub Actions (recommended)
 
+- Direct the user to **Use this template → Private** at `https://github.com/scchy/token-pace/generate`; do not tell them to make a public fork private. The upstream maintainer must enable **Template repository** in Settings for this link to work.
 - Ensure `plans.toml` and `.github/workflows/morning-brief.yml` are included when the user asks to commit or push.
-- Confirm all referenced Secrets are configured in the fork.
+- Confirm all referenced Secrets are configured in the generated private repository.
 - Explain how to run **TokenPace Morning Brief** manually from the Actions tab.
 - Keep the schedule at 08:30 Asia/Shanghai unless the user requests otherwise.
-- Preserve automatic `data/ledger.jsonl` commits and the upstream missing-config skip.
+- Preserve automatic `data/ledger.jsonl` commits with `git add -f`, `[skip ci]`, and `git pull --rebase`, plus the upstream missing-config skip. Branch protection must allow the bot's persistence strategy.
+- For a config-only private repository, copy both files from `examples/config-only-repo` and use its `uvx` workflow instead of the source-checkout workflow. Add new provider secret mappings to both workflows.
 - Do not use `feishu_cli` or `local_jsonl` unless the runner can actually provide those local resources.
 
 ### Local cron

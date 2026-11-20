@@ -29,7 +29,7 @@ TokenPace 将分散在各个平台的 AI 额度汇总成一份可以直接指导
 
 <div align="center">
 
-**[GitHub Actions（推荐）](#方式一github-actions推荐) · [本地私聊卡片](#方式二本地私聊卡片--cron) · [Agent 配置](#让-ai-agent-帮你配置)**
+**[使用模板创建私有仓库](https://github.com/scchy/token-pace/generate) · [极简配置仓 + uvx](examples/config-only-repo) · [本地私聊卡片](#方式二本地私聊卡片--cron) · [Agent 配置](#让-ai-agent-帮你配置)**
 
 </div>
 
@@ -76,12 +76,18 @@ DeepSeek API     🟢 充裕
 
 **这是项目的标准示范部署**：零服务器运维，每天北京时间 **08:30** 自动运行并提交账本。除非需要本机日志或 `lark-cli` 私聊，否则优先使用此方式。
 
-1. **Fork** 本仓库。建议设为 Private，避免公开使用习惯和历史账本。
+1. 点击 **[Use this template](https://github.com/scchy/token-pace/generate)** 创建 **Private（私有）仓库**。GitHub 不允许将公开仓库的 Fork 转为私有，使用模板可直接保护历史账本与使用习惯。
 2. 复制 `plans.example.toml` 为 `plans.toml`，删除不需要的套餐和通知渠道，然后提交。
 3. 在 **Settings → Secrets and variables → Actions** 添加配置引用的密钥。工作流已内置 OpenRouter、DeepSeek、Kimi（`KIM_CODE_API_KEY`）、GLM（`GLM_TOKEN_PLAN_API_KEY`）、飞书、Telegram 和 Bark 映射。
 4. 打开 **Actions → TokenPace Morning Brief → Run workflow** 发送第一条晨报，新快照会自动提交到 `data/ledger.jsonl`。
 
-> GitHub 定时任务可能延迟数分钟。本机 `local_jsonl` 日志请使用本地运行方式。
+**维护者提示：**`/generate` 入口需要先在主仓库的 **Settings → General → Template repository** 中启用。
+
+#### 备选：极简私有配置仓 + `uvx`
+
+个人自用时，可创建只包含 `plans.toml` 和 `.github/workflows/morning-brief.yml` 的私有仓库，直接复制 [`examples/config-only-repo`](examples/config-only-repo)。工作流通过 `uvx --from git+https://github.com/scchy/token-pace.git` 运行主仓代码，无需手动同步源码，账本仍留在私有仓库。需要可复现版本时，可固定为 `git+https://github.com/scchy/token-pace.git@v0.1.0`。
+
+> GitHub 定时任务可能延迟数分钟。本机 `local_jsonl` 日志请使用本地运行方式。账本分支若启用禁止直接 push 的保护规则，需要相应调整自动提交步骤。
 
 ### 方式二：本地私聊卡片 / Cron
 

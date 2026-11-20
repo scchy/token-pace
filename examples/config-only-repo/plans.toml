@@ -1,0 +1,23 @@
+[general]
+locale = "en"
+timezone = "Asia/Shanghai"
+ledger_path = "data/ledger.jsonl"
+workdays_only = false
+timeout = 10
+
+# Keep only the plans you use and set total_quota to your actual budget.
+[[plans]]
+id = "openrouter"
+name = "OpenRouter API"
+provider = "openrouter"
+unit = "USD"
+total_quota = 100.0
+reset_cycle = "monthly:1"
+
+[plans.auth]
+api_key = "${OPENROUTER_API_KEY}"
+
+# GitHub Actions uses a group webhook or another cloud-compatible notifier.
+[[notifiers]]
+type = "feishu"
+webhook_url = "${FEISHU_WEBHOOK_URL}"

@@ -29,7 +29,7 @@ Get the answer where you already are: **Feishu, Telegram, or iOS Bark** — no d
 
 <div align="center">
 
-**[GitHub Actions — Recommended](#option-a--github-actions-recommended) · [Local Private Card](#option-b--local-private-card--cron) · [Agent Setup](#ai-assisted-setup)**
+**[Use Template (Private)](https://github.com/scchy/token-pace/generate) · [Config-Only + uvx](examples/config-only-repo) · [Local Private Card](#option-b--local-private-card--cron) · [Agent Setup](#ai-assisted-setup)**
 
 </div>
 
@@ -76,12 +76,18 @@ DeepSeek API     🟢 SURPLUS
 
 **This is the reference deployment**: zero server maintenance, daily execution at **08:30 Asia/Shanghai**, and automatic ledger commits. Use it unless you need local logs or `lark-cli` direct messages.
 
-1. **Fork** this repository. Making it private is recommended because the ledger reveals usage patterns.
+1. Click **[Use this template](https://github.com/scchy/token-pace/generate)** and create a **Private** repository. GitHub does not allow changing a public fork to private; a private template copy keeps your usage history private.
 2. Copy `plans.example.toml` to `plans.toml`, remove unused plans and notifiers, then commit it.
 3. Add the referenced credentials under **Settings → Secrets and variables → Actions**. The workflow already maps OpenRouter, DeepSeek, Kimi (`KIM_CODE_API_KEY`), GLM (`GLM_TOKEN_PLAN_API_KEY`), Feishu, Telegram, and Bark.
 4. Open **Actions → TokenPace Morning Brief → Run workflow** to send your first brief. New snapshots are committed to `data/ledger.jsonl` automatically.
 
-> GitHub schedules may be delayed by several minutes. Use local mode for `local_jsonl` sources on your machine.
+**Maintainer note:** the `/generate` link requires **Settings → General → Template repository** to be enabled on the upstream repository.
+
+#### Alternative: config-only private repository with `uvx`
+
+For a minimal personal deployment, create a Private repository containing only `plans.toml` and `.github/workflows/morning-brief.yml`, using [`examples/config-only-repo`](examples/config-only-repo). Its workflow runs `uvx --from git+https://github.com/scchy/token-pace.git`, so upstream fixes arrive without syncing source code, while the ledger remains private. To make runs reproducible, pin the source to a release such as `git+https://github.com/scchy/token-pace.git@v0.1.0`.
+
+> GitHub schedules may be delayed by several minutes. Use local mode for `local_jsonl` sources on your machine. Keep direct pushes enabled on the ledger branch or adapt the persistence step for your branch protection rules.
 
 ### Option B — Local Private Card / Cron
 

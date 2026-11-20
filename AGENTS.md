@@ -14,14 +14,15 @@ The runtime must remain standard-library-only. Do not add a database, web framew
 
 ## Deployment priorities
 
-Present **GitHub Actions as the recommended reference deployment**: zero server maintenance, scheduled execution, and automatic ledger persistence. Local cron and `feishu_cli` direct messages are enhancements for users who need local logs, existing CLI authentication, or private Feishu cards.
+Present **GitHub Actions as the recommended reference deployment**: zero server maintenance, scheduled execution, and automatic ledger persistence. Direct users to **Use this template → Private**, not Fork, because public forks cannot be made private. For a minimal self-updating personal deployment, also offer the config-only private repository in `examples/config-only-repo`, which runs upstream code through `uvx`. Local cron and `feishu_cli` direct messages are enhancements for users who need local logs, existing CLI authentication, or private Feishu cards.
 
 For GitHub Actions:
 
 - Keep `plans.toml` free of literal secrets and commit it only when the user asks.
 - Map every referenced secret in `.github/workflows/morning-brief.yml`; existing mappings include OpenRouter, DeepSeek, Kimi, GLM, Feishu, Telegram, and Bark.
 - Preserve the missing-`plans.toml` skip so the upstream repository badge does not fail.
-- Preserve automatic `data/ledger.jsonl` commits.
+- Preserve automatic `data/ledger.jsonl` commits with `git add -f`, `[skip ci]`, and `git pull --rebase` before pushing.
+- Keep the upstream `/generate` flow and the config-only workflow secret mappings synchronized when adding providers.
 
 ## Configure TokenPace for users
 
